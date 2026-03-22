@@ -34,36 +34,38 @@ body,
 /* ==================== Button utility classes ==================== */
 
 .btn-primary {
-  @apply px-4 py-2 text-[13px] font-medium rounded-lg bg-accent text-white
-    hover:bg-accent/85 transition-colors
+  @apply px-4 py-2 text-[13px] font-medium rounded-lg text-white
+    hover:brightness-110 transition-all active:scale-[0.98]
     disabled:opacity-40 disabled:cursor-default cursor-pointer
     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:ring-offset-2 focus-visible:ring-offset-bg;
+  background: linear-gradient(135deg, #58a6ff 0%, #a78bfa 100%);
 }
 
 .btn-secondary {
   @apply px-4 py-2 text-[13px] font-medium rounded-lg border border-border text-text-muted
-    hover:bg-bg-tertiary hover:text-text transition-colors
+    hover:bg-bg-tertiary hover:text-text transition-all active:scale-[0.98]
     disabled:opacity-40 disabled:cursor-default cursor-pointer
     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:ring-offset-2 focus-visible:ring-offset-bg;
 }
 
 .btn-danger {
   @apply px-4 py-2 text-[13px] font-medium rounded-lg border border-red/30 text-red
-    hover:bg-red/10 transition-colors
+    hover:bg-red/10 transition-all active:scale-[0.98]
     disabled:opacity-40 disabled:cursor-default cursor-pointer
     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red/40 focus-visible:ring-offset-2 focus-visible:ring-offset-bg;
 }
 
 .btn-primary-sm {
-  @apply px-3 py-1.5 text-xs font-medium rounded-md bg-accent text-white
-    hover:bg-accent/85 transition-colors
+  @apply px-3 py-1.5 text-xs font-medium rounded-md text-white
+    hover:brightness-110 transition-all active:scale-[0.98]
     disabled:opacity-40 disabled:cursor-default cursor-pointer
     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:ring-offset-1 focus-visible:ring-offset-bg;
+  background: linear-gradient(135deg, #58a6ff 0%, #a78bfa 100%);
 }
 
 .btn-secondary-sm {
   @apply px-3 py-1.5 text-xs font-medium rounded-md border border-border text-text-muted
-    hover:bg-bg-tertiary hover:text-text transition-colors
+    hover:bg-bg-tertiary hover:text-text transition-all active:scale-[0.98]
     disabled:opacity-40 disabled:cursor-default cursor-pointer
     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:ring-offset-1 focus-visible:ring-offset-bg;
 }

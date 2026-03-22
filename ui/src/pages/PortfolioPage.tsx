@@ -175,7 +175,7 @@ function HeroItem({ label, value, pnl }: { label: string; value: string; pnl?: n
   return (
     <div>
       <p className="text-[11px] text-text-muted uppercase tracking-wide">{label}</p>
-      <p className={`text-[20px] md:text-[24px] font-semibold ${color}`}>{value}</p>
+      <p className={`text-[22px] md:text-[28px] font-bold tabular-nums ${color}`}>{value}</p>
     </div>
   )
 }

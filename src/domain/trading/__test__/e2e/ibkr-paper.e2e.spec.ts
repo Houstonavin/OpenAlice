@@ -89,11 +89,11 @@ describe('IbkrBroker — order lifecycle', () => {
   beforeEach(({ skip }) => { if (!broker) skip('no IBKR paper account') })
 
   it('places limit buy → queries → cancels', async () => {
-    const contract = new Contract()
-    contract.symbol = 'AAPL'
-    contract.secType = 'STK'
-    contract.exchange = 'SMART'
-    contract.currency = 'USD'
+    // Discover contract via searchContracts to get conId
+    const results = await broker!.searchContracts('AAPL')
+    expect(results.length).toBeGreaterThan(0)
+    const contract = results[0].contract
+    console.log(`  resolved: symbol=${contract.symbol}, conId=${contract.conId}, secType=${contract.secType}`)
 
     // Place a limit buy at $1 — will never fill, safe to leave open briefly
     const order = new Order()

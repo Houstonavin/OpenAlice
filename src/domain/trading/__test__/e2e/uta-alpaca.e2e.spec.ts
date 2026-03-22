@@ -34,10 +34,12 @@ describe('UTA — Alpaca order lifecycle', () => {
 
   it('limit order: stage → commit → push → cancel', async () => {
     const uta = new UnifiedTradingAccount(broker!)
+    const nativeKey = broker!.getNativeKey({ symbol: 'AAPL' } as any)
+    const aliceId = `${uta.id}|${nativeKey}`
 
     // Stage a limit buy at $1 (won't fill)
     const addResult = uta.stagePlaceOrder({
-      aliceId: `${uta.id}|AAPL`,
+      aliceId,
       symbol: 'AAPL',
       side: 'buy',
       type: 'limit',
@@ -81,6 +83,8 @@ describe('UTA — Alpaca fill flow (AAPL)', () => {
 
   it('buy → sync → verify → close → sync → verify', async () => {
     const uta = new UnifiedTradingAccount(broker!)
+    const nativeKey = broker!.getNativeKey({ symbol: 'AAPL' } as any)
+    const aliceId = `${uta.id}|${nativeKey}`
 
     // Record initial state
     const initialPositions = await broker!.getPositions()
@@ -89,7 +93,7 @@ describe('UTA — Alpaca fill flow (AAPL)', () => {
 
     // === Stage + Commit + Push: buy 1 AAPL ===
     const addResult = uta.stagePlaceOrder({
-      aliceId: `${uta.id}|AAPL`,
+      aliceId,
       symbol: 'AAPL',
       side: 'buy',
       type: 'market',
@@ -124,7 +128,7 @@ describe('UTA — Alpaca fill flow (AAPL)', () => {
     expect(aaplPos!.quantity.toNumber()).toBe(initialAaplQty + 1)
 
     // === Close 1 AAPL ===
-    uta.stageClosePosition({ aliceId: `${uta.id}|AAPL`, qty: 1 })
+    uta.stageClosePosition({ aliceId, qty: 1 })
     uta.commit('e2e: close 1 AAPL')
     const closePush = await uta.push()
     console.log(`  close pushed: status=${closePush.submitted[0]?.status}`)

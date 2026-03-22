@@ -35,9 +35,16 @@ describe('UTA — IBKR order lifecycle', () => {
   it('limit order: stage → commit → push → cancel', async () => {
     const uta = new UnifiedTradingAccount(broker!)
 
+    // Discover AAPL contract to get conId-based aliceId
+    const results = await broker!.searchContracts('AAPL')
+    expect(results.length).toBeGreaterThan(0)
+    const nativeKey = broker!.getNativeKey(results[0].contract)
+    const aliceId = `${uta.id}|${nativeKey}`
+    console.log(`  resolved: nativeKey=${nativeKey}, aliceId=${aliceId}`)
+
     // Stage a limit buy at $1 (won't fill)
     const addResult = uta.stagePlaceOrder({
-      aliceId: `${uta.id}|AAPL`,
+      aliceId,
       symbol: 'AAPL',
       side: 'buy',
       type: 'limit',
@@ -82,6 +89,11 @@ describe('UTA — IBKR fill flow (AAPL)', () => {
   it('buy → sync → verify → close → sync → verify', async () => {
     const uta = new UnifiedTradingAccount(broker!)
 
+    // Discover AAPL contract to get conId-based aliceId
+    const results = await broker!.searchContracts('AAPL')
+    const nativeKey = broker!.getNativeKey(results[0].contract)
+    const aliceId = `${uta.id}|${nativeKey}`
+
     // Record initial state
     const initialPositions = await broker!.getPositions()
     const initialAaplQty = initialPositions.find(p => p.contract.symbol === 'AAPL')?.quantity.toNumber() ?? 0
@@ -89,7 +101,7 @@ describe('UTA — IBKR fill flow (AAPL)', () => {
 
     // === Stage + Commit + Push: buy 1 AAPL ===
     const addResult = uta.stagePlaceOrder({
-      aliceId: `${uta.id}|AAPL`,
+      aliceId,
       symbol: 'AAPL',
       side: 'buy',
       type: 'market',
@@ -124,7 +136,7 @@ describe('UTA — IBKR fill flow (AAPL)', () => {
     expect(aaplPos!.quantity.toNumber()).toBe(initialAaplQty + 1)
 
     // === Close 1 AAPL ===
-    uta.stageClosePosition({ aliceId: `${uta.id}|AAPL`, qty: 1 })
+    uta.stageClosePosition({ aliceId, qty: 1 })
     uta.commit('e2e: close 1 AAPL')
     const closePush = await uta.push()
     console.log(`  close pushed: status=${closePush.submitted[0]?.status}`)

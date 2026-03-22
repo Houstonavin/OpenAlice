@@ -319,8 +319,10 @@ export class IbkrBroker implements IBroker {
       // Numeric nativeKey = conId — TWS resolves everything else from this
       c.conId = asNum
     } else {
-      // String nativeKey = symbol — fill in routing defaults
+      // String nativeKey = symbol — fill in routing defaults.
+      // Assumes STK; other secTypes should use conId for unambiguous resolution.
       c.symbol = nativeKey
+      c.secType = 'STK'
       c.exchange = 'SMART'
       c.currency = 'USD'
     }

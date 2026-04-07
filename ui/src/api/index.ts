@@ -13,6 +13,7 @@ import { devApi } from './dev'
 import { toolsApi } from './tools'
 import { channelsApi } from './channels'
 import { agentStatusApi } from './agentStatus'
+import { personaApi } from './persona'
 export const api = {
   chat: chatApi,
   config: configApi,
@@ -25,6 +26,7 @@ export const api = {
   tools: toolsApi,
   channels: channelsApi,
   agentStatus: agentStatusApi,
+  persona: personaApi,
 }
 
 // Re-export all types for convenience

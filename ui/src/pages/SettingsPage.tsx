@@ -48,6 +48,11 @@ export function SettingsPage() {
               </div>
             </ConfigSection>
 
+            {/* Persona */}
+            <ConfigSection title="Persona" description="The system prompt that defines Alice's personality and behavior. Changes take effect on next server restart.">
+              <PersonaEditor />
+            </ConfigSection>
+
             {/* Compaction */}
             <ConfigSection title="Compaction" description="Context window management. When conversation size approaches Max Context minus Max Output tokens, older messages are automatically summarized to free up space.">
               <CompactionForm config={config} />
@@ -87,6 +92,81 @@ function CompactionForm({ config }: { config: AppConfig }) {
         <input className={inputClass} type="number" step={1000} value={out} onChange={(e) => setOut(e.target.value)} />
       </Field>
       <SaveIndicator status={status} onRetry={retry} />
+    </>
+  )
+}
+
+// ==================== Persona Editor ====================
+
+function PersonaEditor() {
+  const [content, setContent] = useState('')
+  const [filePath, setFilePath] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [dirty, setDirty] = useState(false)
+
+  useEffect(() => {
+    api.persona.get()
+      .then(({ content, path }) => {
+        setContent(content)
+        setFilePath(path)
+      })
+      .catch(() => setError('Failed to load persona'))
+      .finally(() => setLoading(false))
+  }, [])
+
+  const handleSave = async () => {
+    setSaving(true)
+    setError(null)
+    setSaved(false)
+    try {
+      await api.persona.update(content)
+      setDirty(false)
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2000)
+    } catch {
+      setError('Failed to save')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (loading) return <div className="text-sm text-text-muted">Loading...</div>
+
+  return (
+    <>
+      <textarea
+        className={`${inputClass} min-h-[200px] max-h-[400px] resize-y font-mono text-xs leading-relaxed`}
+        value={content}
+        onChange={(e) => { setContent(e.target.value); setDirty(true) }}
+      />
+      <div className="flex items-center gap-2 mt-2">
+        <button
+          onClick={handleSave}
+          disabled={saving || !dirty}
+          className="btn-primary-sm"
+        >
+          {saving ? 'Saving...' : 'Save'}
+        </button>
+        {saved && (
+          <span className="inline-flex items-center gap-1.5 text-[11px]">
+            <span className="w-1.5 h-1.5 rounded-full bg-green" />
+            <span className="text-text-muted">Saved</span>
+          </span>
+        )}
+        {error && (
+          <span className="inline-flex items-center gap-1.5 text-[11px]">
+            <span className="w-1.5 h-1.5 rounded-full bg-red" />
+            <span className="text-red">{error}</span>
+          </span>
+        )}
+        {dirty && !saved && !error && (
+          <span className="text-[11px] text-text-muted">Unsaved changes</span>
+        )}
+      </div>
+      {filePath && <p className="text-[11px] text-text-muted mt-1">{filePath}</p>}
     </>
   )
 }

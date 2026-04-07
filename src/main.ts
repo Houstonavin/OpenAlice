@@ -49,6 +49,8 @@ const FRONTAL_LOBE_FILE = resolve('data/brain/frontal-lobe.md')
 const EMOTION_LOG_FILE = resolve('data/brain/emotion-log.md')
 const PERSONA_FILE = resolve('data/brain/persona.md')
 const PERSONA_DEFAULT = resolve('default/persona.default.md')
+const HEARTBEAT_FILE = resolve('data/brain/heartbeat.md')
+const HEARTBEAT_DEFAULT = resolve('default/heartbeat.default.md')
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
 
@@ -99,6 +101,7 @@ async function main() {
   const [brainExport, persona] = await Promise.all([
     readFile(BRAIN_FILE, 'utf-8').then((r) => JSON.parse(r) as BrainExportState).catch(() => undefined),
     readWithDefault(PERSONA_FILE, PERSONA_DEFAULT),
+    readWithDefault(HEARTBEAT_FILE, HEARTBEAT_DEFAULT),
   ])
 
   const brainDir = resolve('data/brain')

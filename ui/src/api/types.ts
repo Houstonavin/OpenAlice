@@ -332,6 +332,8 @@ export interface BrokerTypeInfo {
   type: string
   name: string
   description: string
+  /** Multi-line setup guide shown in the New Account wizard. Paragraphs separated by `\n\n`. */
+  setupGuide?: string
   badge: string
   badgeColor: string
   fields: BrokerConfigField[]

@@ -1,5 +1,5 @@
 import { fetchJson } from './client'
-import type { TradingAccount, AccountSummary, AccountInfo, Position, WalletCommitLog, ReconnectResult, AccountConfig, WalletStatus, WalletPushResult, WalletRejectResult, TestConnectionResult, BrokerTypeInfo, UTASnapshotSummary, EquityCurvePoint } from './types'
+import type { TradingAccount, AccountSummary, AccountInfo, Position, WalletCommitLog, ReconnectResult, AccountConfig, WalletStatus, WalletPushResult, WalletRejectResult, TestConnectionResult, BrokerTypeInfo, BrokerConfigField, UTASnapshotSummary, EquityCurvePoint } from './types'
 
 // ==================== Unified Trading API ====================
 
@@ -91,6 +91,14 @@ export const tradingApi = {
     return fetchJson('/api/trading/config/broker-types')
   },
 
+  async getCcxtExchanges(): Promise<{ exchanges: string[] }> {
+    return fetchJson('/api/trading/config/ccxt/exchanges')
+  },
+
+  async getCcxtCredentialFields(exchange: string): Promise<{ fields: BrokerConfigField[] }> {
+    return fetchJson(`/api/trading/config/ccxt/exchanges/${encodeURIComponent(exchange)}/credentials`)
+  },
+
   // ==================== Trading Config CRUD ====================
 
   async loadTradingConfig(): Promise<{ accounts: AccountConfig[] }> {
@@ -126,6 +134,11 @@ export const tradingApi = {
     if (opts?.startTime) params.set('startTime', opts.startTime)
     if (opts?.endTime) params.set('endTime', opts.endTime)
     return fetchJson(`/api/trading/accounts/${accountId}/snapshots?${params}`)
+  },
+
+  async deleteSnapshot(accountId: string, timestamp: string): Promise<{ success: boolean }> {
+    const res = await fetch(`/api/trading/accounts/${accountId}/snapshots/${encodeURIComponent(timestamp)}`, { method: 'DELETE' })
+    return res.json()
   },
 
   async equityCurve(opts?: { startTime?: string; endTime?: string; limit?: number }): Promise<{ points: EquityCurvePoint[] }> {

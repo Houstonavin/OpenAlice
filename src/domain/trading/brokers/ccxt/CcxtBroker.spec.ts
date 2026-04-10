@@ -74,11 +74,11 @@ function makeSwapMarket(base: string, quote: string, symbol?: string): any {
   }
 }
 
-function makeAccount(overrides?: Partial<{ exchange: string; apiKey: string; apiSecret: string }>) {
+function makeAccount(overrides?: Partial<{ exchange: string; apiKey: string; secret: string }>) {
   return new CcxtBroker({
     exchange: overrides?.exchange ?? 'bybit',
     apiKey: overrides?.apiKey ?? 'k',
-    apiSecret: overrides?.apiSecret ?? 's',
+    secret: overrides?.secret ?? 's',
     sandbox: false,
   })
 }
@@ -92,7 +92,7 @@ function setInitialized(acc: CcxtBroker, markets: Record<string, any>) {
 
 describe('CcxtBroker — constructor', () => {
   it('throws for unknown exchange', () => {
-    expect(() => new CcxtBroker({ exchange: 'unknownxyz', apiKey: 'k', apiSecret: 's', sandbox: false })).toThrow(
+    expect(() => new CcxtBroker({ exchange: 'unknownxyz', apiKey: 'k', secret: 's', sandbox: false })).toThrow(
       'Unknown CCXT exchange',
     )
   })
@@ -853,9 +853,9 @@ describe('CcxtBroker — getAccount', () => {
   })
 
   it('throws BrokerError when no API credentials', async () => {
-    const acc = new CcxtBroker({ exchange: 'bybit', apiKey: '', apiSecret: '', sandbox: false })
+    const acc = new CcxtBroker({ exchange: 'bybit', apiKey: '', secret: '', sandbox: false })
 
-    await expect(acc.init()).rejects.toThrow('No API credentials configured')
+    await expect(acc.init()).rejects.toThrow(/requires credentials/)
   })
 })
 

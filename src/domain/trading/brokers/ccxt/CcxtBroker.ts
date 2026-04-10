@@ -25,7 +25,7 @@ import {
   type TpSlParams,
 } from '../types.js'
 import '../../contract-ext.js'
-import type { CcxtBrokerConfig, CcxtMarket, FundingRate, OrderBook, OrderBookLevel } from './ccxt-types.js'
+import { CCXT_CREDENTIAL_FIELDS, type CcxtBrokerConfig, type CcxtMarket, type FundingRate, type OrderBook, type OrderBookLevel } from './ccxt-types.js'
 import { MAX_INIT_RETRIES, INIT_RETRY_BASE_MS } from './ccxt-types.js'
 import {
   ccxtTypeToSecType,
@@ -69,21 +69,27 @@ export class CcxtBroker implements IBroker<CcxtBrokerMeta> {
     sandbox: z.boolean().default(false),
     demoTrading: z.boolean().default(false),
     options: z.record(z.string(), z.unknown()).optional(),
+    // All 10 CCXT standard credential fields, all optional.
+    // Each exchange requires its own subset (read via Exchange.requiredCredentials).
     apiKey: z.string().optional(),
-    apiSecret: z.string().optional(),
+    secret: z.string().optional(),
+    apiSecret: z.string().optional(), // legacy alias for `secret`
+    uid: z.string().optional(),
+    accountId: z.string().optional(),
+    login: z.string().optional(),
     password: z.string().optional(),
+    twofa: z.string().optional(),
+    privateKey: z.string().optional(),
+    walletAddress: z.string().optional(),
+    token: z.string().optional(),
   })
 
+  // Static base fields. Exchange dropdown options + per-exchange credential fields
+  // are fetched dynamically by the frontend (see /api/trading/config/ccxt/* routes).
   static configFields: BrokerConfigField[] = [
-    { name: 'exchange', type: 'select', label: 'Exchange', required: true, options: [
-      'binance', 'bybit', 'okx', 'bitget', 'gate', 'kucoin', 'coinbase',
-      'kraken', 'htx', 'mexc', 'bingx', 'phemex', 'woo', 'hyperliquid',
-    ].map(e => ({ value: e, label: e.charAt(0).toUpperCase() + e.slice(1) })) },
+    { name: 'exchange', type: 'select', label: 'Exchange', required: true, options: [] },
     { name: 'sandbox', type: 'boolean', label: 'Sandbox Mode', default: false },
     { name: 'demoTrading', type: 'boolean', label: 'Demo Trading', default: false },
-    { name: 'apiKey', type: 'password', label: 'API Key', required: true, sensitive: true },
-    { name: 'apiSecret', type: 'password', label: 'API Secret', required: true, sensitive: true },
-    { name: 'password', type: 'password', label: 'Password', placeholder: 'Required by some exchanges (e.g. OKX)', sensitive: true },
   ]
 
   static fromConfig(config: { id: string; label?: string; brokerConfig: Record<string, unknown> }): CcxtBroker {
@@ -95,9 +101,17 @@ export class CcxtBroker implements IBroker<CcxtBrokerMeta> {
       sandbox: bc.sandbox,
       demoTrading: bc.demoTrading,
       options: bc.options,
-      apiKey: bc.apiKey ?? '',
-      apiSecret: bc.apiSecret ?? '',
+      apiKey: bc.apiKey,
+      // Accept both `secret` (CCXT-native) and legacy `apiSecret`
+      secret: bc.secret ?? bc.apiSecret,
+      uid: bc.uid,
+      accountId: bc.accountId,
+      login: bc.login,
       password: bc.password,
+      twofa: bc.twofa,
+      privateKey: bc.privateKey,
+      walletAddress: bc.walletAddress,
+      token: bc.token,
     })
   }
 
@@ -133,12 +147,14 @@ export class CcxtBroker implements IBroker<CcxtBrokerMeta> {
     }
     const mergedOptions = { ...defaultOptions, ...config.options }
 
-    this.exchange = new ExchangeClass({
-      apiKey: config.apiKey,
-      secret: config.apiSecret,
-      password: config.password,
-      options: mergedOptions,
-    })
+    // Pass through all CCXT standard credential fields. CCXT ignores undefined.
+    const cfgRecord = config as unknown as Record<string, unknown>
+    const credentials: Record<string, unknown> = { options: mergedOptions }
+    for (const field of CCXT_CREDENTIAL_FIELDS) {
+      const v = cfgRecord[field]
+      if (v !== undefined) credentials[field] = v
+    }
+    this.exchange = new ExchangeClass(credentials)
 
     if (config.sandbox) {
       this.exchange.setSandboxMode(true)
@@ -164,10 +180,18 @@ export class CcxtBroker implements IBroker<CcxtBrokerMeta> {
   // ---- Lifecycle ----
 
   async init(): Promise<void> {
-    if (!this.exchange.apiKey || !this.exchange.secret) {
+    // Validate credentials per the exchange's own requiredCredentials map.
+    // Hyperliquid needs walletAddress + privateKey; OKX needs apiKey + secret + password; etc.
+    try {
+      this.exchange.checkRequiredCredentials()
+    } catch (err) {
+      const required = Object.entries(this.exchange.requiredCredentials ?? {})
+        .filter(([, needed]) => needed)
+        .map(([k]) => k)
+      const missing = required.filter(k => !(this.exchange as unknown as Record<string, unknown>)[k])
       throw new BrokerError(
         'CONFIG',
-        `No API credentials configured. Set apiKey and apiSecret in accounts.json to enable this account.`,
+        `${this.exchangeName} requires credentials: ${required.join(', ')}. Missing: ${missing.join(', ') || 'unknown'}. (${err instanceof Error ? err.message : String(err)})`,
       )
     }
 

@@ -20,22 +20,24 @@ export function KeyMetricsPanel({ symbol }: Props) {
     setLoading(true)
     setError(null)
     // Metrics and ratios both feed this panel, but ratios isn't implemented
-    // on every provider (yfinance returns "Fetcher not found"). Treat either
-    // result independently: if even one returns rows, we have something to
-    // show. Only surface an error when both are empty.
-    Promise.all([marketApi.equity.metrics(symbol), marketApi.equity.ratios(symbol)])
-      .then(([m, r]) => {
+    // on every provider (yfinance 500s with "Fetcher not found"). Use
+    // allSettled so a single rejection doesn't discard the other source.
+    Promise.allSettled([marketApi.equity.metrics(symbol), marketApi.equity.ratios(symbol)])
+      .then(([mRes, rRes]) => {
         if (cancelled) return
-        const metrics = m.results?.[0] ?? null
-        const ratios = r.results?.[0] ?? null
+        const m = mRes.status === 'fulfilled' ? mRes.value : null
+        const r = rRes.status === 'fulfilled' ? rRes.value : null
+        const metrics = m?.results?.[0] ?? null
+        const ratios = r?.results?.[0] ?? null
         if (!metrics && !ratios) {
-          setError(m.error ?? r.error ?? 'No data')
+          const rejectMsg = (x: PromiseSettledResult<unknown>) =>
+            x.status === 'rejected' ? (x.reason instanceof Error ? x.reason.message : String(x.reason)) : undefined
+          setError(rejectMsg(mRes) ?? m?.error ?? rejectMsg(rRes) ?? r?.error ?? 'No data')
           return
         }
         setData({ metrics, ratios })
-        setProvider(m.provider || r.provider || null)
+        setProvider(m?.provider ?? r?.provider ?? null)
       })
-      .catch((e) => { if (!cancelled) setError(e instanceof Error ? e.message : String(e)) })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
   }, [symbol])

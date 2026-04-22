@@ -28,6 +28,7 @@ const ALIAS_DICT: Record<string, string> = {
   // consumers free of per-provider key guessing.
   ma50: 'fiftyDayAverage',
   ma200: 'twoHundredDayAverage',
+  market_cap: 'marketCap',
   volume_average: 'averageVolume',
   volume_average_10d: 'averageDailyVolume10Day',
   bid_size: 'bidSize',
@@ -41,6 +42,7 @@ export type YFinanceEquityQuoteQueryParams = z.infer<typeof YFinanceEquityQuoteQ
 export const YFinanceEquityQuoteDataSchema = EquityQuoteDataSchema.extend({
   ma50: z.number().nullable().default(null).describe('50-day moving average price.'),
   ma200: z.number().nullable().default(null).describe('200-day moving average price.'),
+  market_cap: z.number().nullable().default(null).describe('Market capitalization of the company.'),
   volume_average: z.number().nullable().default(null).describe('Average daily trading volume.'),
   volume_average_10d: z.number().nullable().default(null).describe('Average daily trading volume in the last 10 days.'),
   currency: z.string().nullable().default(null).describe('Currency of the price.'),

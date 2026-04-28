@@ -3,6 +3,7 @@ import type { Context } from 'hono'
 import type { EngineContext } from '../../../core/types.js'
 import { BrokerError } from '../../../domain/trading/brokers/types.js'
 import type { UnifiedTradingAccount } from '../../../domain/trading/UnifiedTradingAccount.js'
+import { searchTradeableContracts } from '../../../domain/trading/contract-search.js'
 
 /** Resolve account by :id param, return 404 if not found. */
 function resolveAccount(ctx: EngineContext, c: Context): UnifiedTradingAccount | null {
@@ -56,6 +57,22 @@ export function createTradingRoutes(ctx: EngineContext) {
   app.get('/equity', async (c) => {
     const equity = await ctx.accountManager.getAggregatedEquity()
     return c.json(equity)
+  })
+
+  // ==================== Tradeable contract search ====================
+  // Heuristic broker-side search across every configured account. Powers
+  // the Market workbench's "tradeable contracts" hint card and any other
+  // surface that wants to bridge a data-vendor symbol to actionable
+  // alias_ids without making the bridge structural.
+  app.get('/contracts/search', async (c) => {
+    const pattern = (c.req.query('pattern') ?? c.req.query('query') ?? '').trim()
+    if (!pattern) return c.json({ results: [], count: 0 })
+    const accounts = ctx.accountManager.listAccounts()
+    if (accounts.length === 0) {
+      return c.json({ results: [], count: 0, accountsConfigured: 0 })
+    }
+    const hits = await searchTradeableContracts(ctx.accountManager, pattern)
+    return c.json({ results: hits, count: hits.length, accountsConfigured: accounts.length })
   })
 
   // ==================== FX rates ====================

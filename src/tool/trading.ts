@@ -95,17 +95,21 @@ This is a BROKER-LEVEL search — it queries your connected trading accounts.`,
         source: z.string().optional().describe(sourceDesc(false)),
       }),
       execute: async ({ pattern, source }) => {
+        // Source-scoped search reuses the same domain helper logic via a
+        // thin wrapper: when the caller pinned an account, only that one
+        // is hit; otherwise we fan out to all of them.
         const targets = manager.resolve(source)
         if (targets.length === 0) return { error: 'No accounts available.' }
-        const allResults: Array<Record<string, unknown>> = []
-        for (const uta of targets) {
-          try {
-            const descriptions = await uta.searchContracts(pattern)
-            for (const desc of descriptions) allResults.push({ source: uta.id, ...desc })
-          } catch { /* skip */ }
+        const all: Array<Record<string, unknown>> = []
+        const settled = await Promise.allSettled(
+          targets.map(async (uta) => ({ id: uta.id, results: await uta.searchContracts(pattern) })),
+        )
+        for (const r of settled) {
+          if (r.status !== 'fulfilled') continue
+          for (const desc of r.value.results) all.push({ source: r.value.id, ...desc })
         }
-        if (allResults.length === 0) return { results: [], message: `No contracts found matching "${pattern}".` }
-        return allResults
+        if (all.length === 0) return { results: [], message: `No contracts found matching "${pattern}".` }
+        return all
       },
     }),
 

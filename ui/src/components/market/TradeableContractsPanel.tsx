@@ -19,16 +19,20 @@ interface Props {
  * on this, where would I do it?" — and so we get a non-AI inspection
  * window into UTA contract state for debugging.
  */
+const COLLAPSED_LIMIT = 3
+
 export function TradeableContractsPanel({ symbol, assetClass }: Props) {
   const [hits, setHits] = useState<ContractSearchHit[] | null>(null)
   const [accountsConfigured, setAccountsConfigured] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [expanded, setExpanded] = useState(false)
 
   useEffect(() => {
     let cancelled = false
     setLoading(true)
     setError(null)
+    setExpanded(false)  // collapse on symbol/asset change
     tradingApi.searchContracts(symbol, assetClass)
       .then((res) => {
         if (cancelled) return
@@ -67,13 +71,29 @@ export function TradeableContractsPanel({ symbol, assetClass }: Props) {
         </div>
       )}
 
-      {!loading && !error && hits && hits.length > 0 && (
-        <ul className="flex flex-col divide-y divide-border/40 -mx-3">
-          {[...hits].sort(byInstrumentFamiliarity).map((h, i) => (
-            <ContractRow key={`${h.source}:${h.contract.aliceId ?? i}`} hit={h} />
-          ))}
-        </ul>
-      )}
+      {!loading && !error && hits && hits.length > 0 && (() => {
+        const sorted = [...hits].sort(byInstrumentFamiliarity)
+        const overflow = sorted.length > COLLAPSED_LIMIT
+        const visible = expanded || !overflow ? sorted : sorted.slice(0, COLLAPSED_LIMIT)
+        const hidden = sorted.length - visible.length
+        return (
+          <>
+            <ul className="flex flex-col divide-y divide-border/40 -mx-3">
+              {visible.map((h, i) => (
+                <ContractRow key={`${h.source}:${h.contract.aliceId ?? i}`} hit={h} />
+              ))}
+            </ul>
+            {overflow && (
+              <button
+                onClick={() => setExpanded((v) => !v)}
+                className="mt-2 text-[11px] text-text-muted/70 hover:text-accent transition-colors cursor-pointer"
+              >
+                {expanded ? `Show fewer` : `Show ${hidden} more (${sorted.length} total)`}
+              </button>
+            )}
+          </>
+        )
+      })()}
     </Card>
   )
 }

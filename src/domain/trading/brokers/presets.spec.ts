@@ -22,6 +22,7 @@ import {
   BITGET_PRESET,
   ALPACA_PRESET,
   IBKR_PRESET,
+  LONGBRIDGE_PRESET,
   CCXT_CUSTOM_PRESET,
 } from './preset-catalog.js'
 import { BROKER_ENGINE_REGISTRY } from './registry.js'
@@ -31,13 +32,18 @@ import { BUILTIN_BROKER_PRESETS } from './presets.js'
 
 /** Minimal valid presetConfig for each preset id. Use to round-trip through schema + engine. */
 const SAMPLE_CONFIGS: Record<string, Record<string, unknown>> = {
-  okx:           { mode: 'live', apiKey: 'k', secret: 's', password: 'p' },
-  bybit:         { mode: 'live', apiKey: 'k', secret: 's' },
-  hyperliquid:   { mode: 'live', walletAddress: '0xabc', privateKey: 'pk' },
-  bitget:        { mode: 'live', apiKey: 'k', secret: 's', password: 'p' },
-  alpaca:        { mode: 'paper', apiKey: 'k', apiSecret: 's' },
-  'ibkr-tws':    { host: '127.0.0.1', port: 7497, clientId: 0 },
-  'ccxt-custom': { exchange: 'kucoin', apiKey: 'k', secret: 's' },
+  okx:             { mode: 'live', apiKey: 'k', secret: 's', password: 'p' },
+  bybit:           { mode: 'live', apiKey: 'k', secret: 's' },
+  hyperliquid:     { mode: 'live', walletAddress: '0xabc', privateKey: 'pk' },
+  bitget:          { mode: 'live', apiKey: 'k', secret: 's', password: 'p' },
+  alpaca:          { mode: 'paper', apiKey: 'k', apiSecret: 's' },
+  'ibkr-tws':      { host: '127.0.0.1', port: 7497, clientId: 0 },
+  longbridge:      { mode: 'live', appKey: 'k', appSecret: 's', accessToken: 't' },
+  'ccxt-custom':   { exchange: 'kucoin', apiKey: 'k', secret: 's' },
+  'leverup-monad': {
+    mode: 'testnet',
+    privateKey: '0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d',
+  },
 }
 
 // ==================== Catalog integrity ====================
@@ -122,6 +128,16 @@ describe('preset → engine config translation', () => {
     expect(cfg.paper).toBe(false)
   })
 
+  it('Longbridge mode=paper sets paper=true', () => {
+    const cfg = LONGBRIDGE_PRESET.toEngineConfig({ mode: 'paper', appKey: 'k', appSecret: 's', accessToken: 't' })
+    expect(cfg.paper).toBe(true)
+  })
+
+  it('Longbridge mode=live sets paper=false', () => {
+    const cfg = LONGBRIDGE_PRESET.toEngineConfig({ mode: 'live', appKey: 'k', appSecret: 's', accessToken: 't' })
+    expect(cfg.paper).toBe(false)
+  })
+
   it('IBKR passes host/port/clientId straight through', () => {
     const cfg = IBKR_PRESET.toEngineConfig({ host: '10.0.0.5', port: 7496, clientId: 7 })
     expect(cfg).toMatchObject({ host: '10.0.0.5', port: 7496, clientId: 7 })
@@ -150,6 +166,11 @@ describe('isPaperPreset', () => {
   it('true for Alpaca paper, false for Alpaca live', () => {
     expect(isPaperPreset('alpaca', { mode: 'paper' })).toBe(true)
     expect(isPaperPreset('alpaca', { mode: 'live' })).toBe(false)
+  })
+
+  it('true for Longbridge paper, false for Longbridge live', () => {
+    expect(isPaperPreset('longbridge', { mode: 'paper' })).toBe(true)
+    expect(isPaperPreset('longbridge', { mode: 'live' })).toBe(false)
   })
 
   it('IBKR uses port-based detection (7497 / 4002 → paper)', () => {

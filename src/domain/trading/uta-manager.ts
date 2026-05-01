@@ -91,7 +91,7 @@ export class UTAManager {
 
   /** Create a UTA from config, register it, and start async broker connection. */
   async initUTA(cfg: UTAConfig): Promise<UnifiedTradingAccount> {
-    const broker = createBroker(cfg)
+    const broker = createBroker(cfg, { fxService: this.fxService })
     const savedState = await loadGitState(cfg.id)
     const uta = new UnifiedTradingAccount(broker, {
       guards: cfg.guards,

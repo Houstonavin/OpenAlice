@@ -16,9 +16,15 @@ import type { IBroker } from './types.js'
 import { BROKER_ENGINE_REGISTRY } from './registry.js'
 import { getBrokerPreset } from './preset-catalog.js'
 import type { UTAConfig } from '../../../core/config.js'
+import type { FxService } from '../fx-service.js'
+
+/** Optional services brokers can opt into via duck-typed setters. */
+export interface BrokerServices {
+  fxService?: FxService
+}
 
 /** Create an IBroker from account config via preset resolution. */
-export function createBroker(config: UTAConfig): IBroker {
+export function createBroker(config: UTAConfig, services?: BrokerServices): IBroker {
   const preset = getBrokerPreset(config.presetId)
   const presetData = preset.zodSchema.parse(config.presetConfig) as Record<string, unknown>
   const engineConfig = preset.toEngineConfig(presetData)
@@ -27,9 +33,16 @@ export function createBroker(config: UTAConfig): IBroker {
   if (!entry) {
     throw new Error(`Unknown broker engine "${preset.engine}" referenced by preset "${preset.id}"`)
   }
-  return entry.fromConfig({
+  const broker = entry.fromConfig({
     id: config.id,
     label: config.label,
     brokerConfig: engineConfig,
   })
+
+  // Multi-currency-aware brokers (e.g. Longbridge) opt in via setFxService.
+  // Single-currency brokers don't expose this method and skip the call.
+  if (services?.fxService && typeof (broker as { setFxService?: unknown }).setFxService === 'function') {
+    (broker as unknown as { setFxService: (fx: FxService) => void }).setFxService(services.fxService)
+  }
+  return broker
 }

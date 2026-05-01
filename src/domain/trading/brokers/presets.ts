@@ -19,7 +19,7 @@ export interface SerializedBrokerPreset {
   id: string
   label: string
   description: string
-  category: 'crypto' | 'securities' | 'custom'
+  category: 'recommended' | 'crypto'
   hint?: string
   defaultName: string
   badge: string

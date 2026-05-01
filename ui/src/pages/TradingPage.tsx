@@ -195,6 +195,14 @@ function HintBlock({ text }: { text: string }) {
 
 // ==================== Create Wizard (multi-step) ====================
 
+function PickerSectionHeader({ title }: { title: string }) {
+  return (
+    <p className="text-[11px] font-medium text-text-muted uppercase tracking-wide">
+      {title}
+    </p>
+  )
+}
+
 type WizardStep = 'pick' | 'config' | 'test'
 
 function CreateWizard({ presets, existingUTAIds, onSave, onClose }: {
@@ -219,13 +227,22 @@ function CreateWizard({ presets, existingUTAIds, onSave, onClose }: {
   const defaultId = preset?.defaultName ?? ''
   const finalId = id.trim() || defaultId
 
-  const platformOptions: SDKOption[] = useMemo(() => presets.map(p => ({
+  const toOption = (p: BrokerPreset): SDKOption => ({
     id: p.id,
     name: p.label,
     description: p.description,
     badge: p.badge,
     badgeColor: p.badgeColor,
-  })), [presets])
+  })
+
+  const recommendedOptions: SDKOption[] = useMemo(
+    () => presets.filter(p => p.category === 'recommended').map(toOption),
+    [presets],
+  )
+  const cryptoOptions: SDKOption[] = useMemo(
+    () => presets.filter(p => p.category === 'crypto').map(toOption),
+    [presets],
+  )
 
   const buildUTA = (): UTAConfig | null => {
     if (!preset) return null
@@ -304,7 +321,20 @@ function CreateWizard({ presets, existingUTAIds, onSave, onClose }: {
 
       <div className="flex-1 overflow-y-auto px-6 py-6">
         {step === 'pick' && (
-          <SDKSelector options={platformOptions} selected={presetId ?? ''} onSelect={handlePick} />
+          <div className="space-y-6">
+            {recommendedOptions.length > 0 && (
+              <section className="space-y-3">
+                <PickerSectionHeader title="Recommended" />
+                <SDKSelector options={recommendedOptions} selected={presetId ?? ''} onSelect={handlePick} />
+              </section>
+            )}
+            {cryptoOptions.length > 0 && (
+              <section className="space-y-3">
+                <PickerSectionHeader title="Crypto" />
+                <SDKSelector options={cryptoOptions} selected={presetId ?? ''} onSelect={handlePick} />
+              </section>
+            )}
+          </div>
         )}
 
         {step === 'config' && preset && (

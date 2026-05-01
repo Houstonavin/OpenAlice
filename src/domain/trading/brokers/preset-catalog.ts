@@ -40,8 +40,14 @@ export interface BrokerPresetDef {
   label: string
   /** Short description shown under the label. */
   description: string
-  /** Group in the picker UI. */
-  category: 'crypto' | 'securities' | 'custom'
+  /**
+   * Group in the picker UI. Wizard renders 'recommended' first, then
+   * 'crypto'. Securities + Longbridge HK + Hyperliquid sit in
+   * 'recommended' (Hyperliquid grandfathered for product-history reasons,
+   * not because it's not crypto). Everything else crypto-native — incl.
+   * CCXT Custom — lands in 'crypto'.
+   */
+  category: 'recommended' | 'crypto'
   /** Optional explanatory text rendered with the form (mode-specific gotchas, etc.). */
   hint?: string
   /** Default account id suggested in the wizard (e.g., "okx-main"). */
@@ -158,7 +164,7 @@ export const HYPERLIQUID_PRESET: BrokerPresetDef = {
   id: 'hyperliquid',
   label: 'Hyperliquid',
   description: 'Hyperliquid perp DEX. Uses wallet auth, not API keys.',
-  category: 'crypto',
+  category: 'recommended',
   hint: 'Hyperliquid authenticates via wallet signatures. Generate a **dedicated API wallet** at app.hyperliquid.xyz/API and use its private key here — never paste your main wallet\'s key. The wallet address can be either the main wallet (vault owner) or the API wallet itself.',
   defaultName: 'hyperliquid-main',
   badge: 'HL',
@@ -224,7 +230,7 @@ export const CCXT_CUSTOM_PRESET: BrokerPresetDef = {
   id: 'ccxt-custom',
   label: 'CCXT Custom (any exchange)',
   description: 'Power-user escape hatch — connect to any of CCXT\'s 100+ exchanges with the raw credential field set. Untested; expect rough edges.',
-  category: 'custom',
+  category: 'crypto',
   hint: 'This preset exposes every CCXT credential field. Use it only for exchanges without a dedicated preset. Read the exchange\'s CCXT page (docs.ccxt.com) to know which fields it actually requires — sandbox/demoTrading semantics vary per exchange.',
   defaultName: 'ccxt-custom',
   badge: 'CC',
@@ -266,7 +272,7 @@ export const ALPACA_PRESET: BrokerPresetDef = {
   id: 'alpaca',
   label: 'Alpaca (US Equities)',
   description: 'Commission-free US stocks and ETFs with fractional shares.',
-  category: 'securities',
+  category: 'recommended',
   hint: 'Paper and Live use **separate** API keys — generate from the matching dashboard at alpaca.markets. Paper is free and unlimited; Live places real orders on real money.',
   defaultName: 'alpaca-paper',
   badge: 'AL',
@@ -297,7 +303,7 @@ export const IBKR_PRESET: BrokerPresetDef = {
   id: 'ibkr-tws',
   label: 'IBKR (TWS / IB Gateway)',
   description: 'Interactive Brokers via local TWS or IB Gateway socket — stocks, options, futures, FX, bonds.',
-  category: 'securities',
+  category: 'recommended',
   hint: 'IBKR auth happens via your TWS/Gateway login — no API keys here. Make sure TWS is running and "Enable ActiveX and Socket Clients" is on (File → Global Configuration → API → Settings). Default ports: 7496 (live) / 7497 (paper). For IB Gateway: 4001 (live) / 4002 (paper).',
   defaultName: 'ibkr',
   badge: 'IB',
@@ -327,7 +333,7 @@ export const LONGBRIDGE_PRESET: BrokerPresetDef = {
   id: 'longbridge',
   label: 'Longbridge (HK / US / CN / SG)',
   description: 'Longbridge OpenAPI — multi-region broker for HK, US, CN A-shares (via Stock Connect), and SG equities under one account.',
-  category: 'securities',
+  category: 'recommended',
   hint: 'Longbridge uses **appKey + appSecret + accessToken** from open.longbridge.com. The access token is long-lived (~90 days) but **does not auto-refresh** — when it expires you must regenerate it in the LB dashboard and update this config. Paper and live use separate credentials; generate from the matching environment.',
   defaultName: 'longbridge-main',
   badge: 'LB',
@@ -393,19 +399,25 @@ Paste the **private key of the authorized wallet** below. LeverUp's team confirm
 
 // ==================== Catalog ====================
 
+// Order matters — the wizard renders presets top-down within each
+// category section, and `category` itself is split into Recommended →
+// Crypto sections in that order. See ui/src/pages/TradingPage.tsx for
+// the actual section-grouping logic.
 export const BROKER_PRESET_CATALOG: BrokerPresetDef[] = [
-  // Crypto (tested with real API keys)
+  // ---- Recommended ----
+  // Real-money-grade brokers first, then Hyperliquid (grandfathered into
+  // Recommended out of product history — Alice's earliest paper-trading
+  // prototype was modeled on its API).
+  IBKR_PRESET,
+  ALPACA_PRESET,
+  LONGBRIDGE_PRESET,
+  HYPERLIQUID_PRESET,
+  // ---- Crypto ----
   OKX_PRESET,
   BYBIT_PRESET,
-  HYPERLIQUID_PRESET,
   BITGET_PRESET,
-  // Securities
-  ALPACA_PRESET,
-  IBKR_PRESET,
-  LONGBRIDGE_PRESET,
-  // Other ecosystem (favor-return tier)
   LEVERUP_PRESET,
-  // Escape hatch (untested exchanges)
+  // Escape hatch — untested CCXT exchanges; lives at the end of Crypto.
   CCXT_CUSTOM_PRESET,
 ]
 

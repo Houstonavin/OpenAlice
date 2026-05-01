@@ -382,12 +382,12 @@ export interface BrokerPreset {
   id: string
   label: string
   description: string
-  category: 'crypto' | 'securities' | 'custom'
+  category: 'recommended' | 'crypto'
   hint?: string
   defaultName: string
   badge: string
   badgeColor: string
-  engine: 'ccxt' | 'alpaca' | 'ibkr'
+  engine: 'ccxt' | 'alpaca' | 'ibkr' | 'leverup' | 'longbridge'
   guardCategory: 'crypto' | 'securities'
   modes?: ModeOption[]
   subtitleFields: SubtitleField[]

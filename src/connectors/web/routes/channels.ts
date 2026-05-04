@@ -13,14 +13,17 @@ interface ChannelsDeps {
 export function createChannelsRoutes({ sessions, sseByChannel }: ChannelsDeps) {
   const app = new Hono()
 
-  /** GET / — list all channels (default first, then sub-channels) */
+  /**
+   * GET / — list all channels.
+   * Default is always first. If subchannels file has a stored 'default' entry
+   * (because the user renamed it), use that; otherwise fall back to the
+   * built-in label.
+   */
   app.get('/', async (c) => {
     const subChannels = await readWebSubchannels()
-    const channels = [
-      { id: 'default', label: 'Alice' },
-      ...subChannels,
-    ]
-    return c.json({ channels })
+    const defaultEntry = subChannels.find((ch) => ch.id === 'default') ?? { id: 'default', label: 'Alice' }
+    const others = subChannels.filter((ch) => ch.id !== 'default')
+    return c.json({ channels: [defaultEntry, ...others] })
   })
 
   /** POST / — create a new sub-channel */
@@ -67,10 +70,13 @@ export function createChannelsRoutes({ sessions, sseByChannel }: ChannelsDeps) {
     return c.json({ channel: newChannel }, 201)
   })
 
-  /** PUT /:id — update a sub-channel */
+  /**
+   * PUT /:id — update a channel (including default).
+   * Default is editable but can't be deleted; on first edit it's inserted
+   * into the subchannels file as a regular entry.
+   */
   app.put('/:id', async (c) => {
     const id = c.req.param('id')
-    if (id === 'default') return c.json({ error: 'cannot modify default channel' }, 400)
 
     const body = await c.req.json() as {
       label?: string
@@ -81,7 +87,20 @@ export function createChannelsRoutes({ sessions, sseByChannel }: ChannelsDeps) {
 
     const existing = await readWebSubchannels()
     const idx = existing.findIndex((ch) => ch.id === id)
-    if (idx === -1) return c.json({ error: 'channel not found' }, 404)
+
+    // First-time edit of default: it's not yet persisted, insert it.
+    if (idx === -1) {
+      if (id !== 'default') return c.json({ error: 'channel not found' }, 404)
+      const inserted: WebChannel = {
+        id: 'default',
+        label: body.label?.trim() || 'Alice',
+        ...(body.systemPrompt ? { systemPrompt: body.systemPrompt } : {}),
+        ...(body.profile ? { profile: body.profile } : {}),
+        ...(body.disabledTools?.length ? { disabledTools: body.disabledTools } : {}),
+      }
+      await writeWebSubchannels([...existing, inserted])
+      return c.json({ channel: inserted })
+    }
 
     const updated: WebChannel = {
       ...existing[idx],

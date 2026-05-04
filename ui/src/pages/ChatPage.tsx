@@ -8,10 +8,9 @@ import { PushApprovalPanel } from '../components/PushApprovalPanel'
 interface ChatPageProps {
   channels: ChannelListItem[]
   activeChannel: string
-  onChannelChange: (id: string) => void
 }
 
-export function ChatPage({ channels, activeChannel, onChannelChange }: ChatPageProps) {
+export function ChatPage({ channels, activeChannel }: ChatPageProps) {
   const [showScrollBtn, setShowScrollBtn] = useState(false)
   const [newMsgCount, setNewMsgCount] = useState(0)
 
@@ -23,7 +22,6 @@ export function ChatPage({ channels, activeChannel, onChannelChange }: ChatPageP
   const userScrolledUp = useRef(false)
   const containerRef = useRef<HTMLDivElement>(null)
 
-  const isOnSubChannel = activeChannel !== 'default'
   const activeChannelConfig = channels.find((ch) => ch.id === activeChannel)
 
   // Auto-scroll to bottom
@@ -139,26 +137,6 @@ export function ChatPage({ channels, activeChannel, onChannelChange }: ChatPageP
   return (
     <div className="flex flex-1 min-h-0">
       <div className="flex flex-col flex-1 min-h-0 max-w-[800px] mx-auto w-full">
-        {/* Sub-channel context bar — back-to-Alice + active channel name */}
-        {isOnSubChannel && (
-          <div className="flex items-center gap-3 px-4 py-2 border-b border-border bg-bg-secondary/30">
-            <button
-              onClick={() => onChannelChange('default')}
-              className="flex items-center gap-1 text-sm text-text-muted hover:text-text transition-colors"
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M19 12H5M12 19l-7-7 7-7" />
-              </svg>
-              Alice
-            </button>
-            <span className="text-sm text-text-muted/50">|</span>
-            <span className="text-sm font-medium text-text">
-              <span className="text-text-muted mr-0.5">#</span>
-              {activeChannelConfig?.label ?? activeChannel}
-            </span>
-          </div>
-        )}
-
         {/* Messages area */}
         <div className="flex-1 min-h-0 relative">
           <div ref={containerRef} className="h-full overflow-y-auto px-5 py-6">
@@ -177,17 +155,8 @@ export function ChatPage({ channels, activeChannel, onChannelChange }: ChatPageP
                   draggable={false}
                 />
                 <div className="text-center">
-                  {activeChannel === 'default' ? (
-                    <>
-                      <h2 className="text-lg font-semibold text-text mb-1">Hi, I'm Alice</h2>
-                      <p className="text-sm text-text-muted">Send a message to start chatting</p>
-                    </>
-                  ) : (
-                    <>
-                      <h2 className="text-lg font-semibold text-text mb-1">{activeChannelConfig?.label ?? activeChannel}</h2>
-                      <p className="text-sm text-text-muted">Send a message to start chatting</p>
-                    </>
-                  )}
+                  <h2 className="text-lg font-semibold text-text mb-1">{activeChannelConfig?.label ?? activeChannel}</h2>
+                  <p className="text-sm text-text-muted">Send a message to start chatting</p>
                 </div>
               </div>
             )}

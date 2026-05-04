@@ -51,7 +51,7 @@ export function App() {
   const location = useLocation()
 
   // ===== Chat channels — lifted from ChatPage so the SecondarySidebar can render the list =====
-  const [channels, setChannels] = useState<ChannelListItem[]>([{ id: 'default', label: 'Alice' }])
+  const [channels, setChannels] = useState<ChannelListItem[]>([])
   const [activeChannel, setActiveChannel] = useState('default')
   const [editingChannel, setEditingChannel] = useState<ChannelListItem | null>(null)
   const [showNewChannelForm, setShowNewChannelForm] = useState(false)
@@ -150,7 +150,6 @@ export function App() {
                 <ChatPage
                   channels={channels}
                   activeChannel={activeChannel}
-                  onChannelChange={setActiveChannel}
                 />
               }
             />

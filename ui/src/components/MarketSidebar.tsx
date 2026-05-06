@@ -3,6 +3,7 @@ import { marketApi, type SearchResult, type AssetClass } from '../api/market'
 import { useWorkspace } from '../tabs/store'
 import { useWatchlist } from '../tabs/watchlist-store'
 import { getFocusedTab, type ViewSpec } from '../tabs/types'
+import { SidebarRow } from './SidebarRow'
 
 const ASSET_CLASS_COLORS: Record<AssetClass, string> = {
   equity: 'bg-accent/15 text-accent',
@@ -26,7 +27,7 @@ function resultKey(r: SearchResult): string {
  * an asset (via the ⭐ button on the detail page) adds it to the
  * watchlist below.
  *
- * Search results are debounced 300ms (mirrors SearchBox).
+ * Search results are debounced 300ms.
  */
 export function MarketSidebar() {
   const [query, setQuery] = useState('')
@@ -88,17 +89,11 @@ export function MarketSidebar() {
       <div className="flex-1 overflow-y-auto min-h-0">
         {/* Browse */}
         <SidebarSectionHeader>Browse</SidebarSectionHeader>
-        <button
-          type="button"
+        <SidebarRow
+          label="Browse Markets"
+          active={isFocused('market-list')}
           onClick={() => openOrFocus({ kind: 'market-list', params: {} })}
-          className={`w-full text-left flex items-center gap-1 px-3 py-1 text-[13px] transition-colors ${
-            isFocused('market-list')
-              ? 'bg-bg-tertiary text-text'
-              : 'text-text-muted hover:text-text hover:bg-bg-tertiary/50'
-          }`}
-        >
-          Browse Markets
-        </button>
+        />
 
         {/* Search results — only when query is non-empty */}
         {query.trim() && (
@@ -112,22 +107,18 @@ export function MarketSidebar() {
             {results.map((r) => {
               const sym = resultSymbol(r)
               return (
-                <button
+                <SidebarRow
                   key={resultKey(r)}
-                  type="button"
+                  label={
+                    <span className="flex items-center gap-1.5 truncate">
+                      <span className="font-mono font-semibold truncate">{sym}</span>
+                      {r.name && <span className="text-text-muted truncate">{r.name}</span>}
+                    </span>
+                  }
+                  active={isFocusedDetail(r.assetClass, sym)}
                   onClick={() => handleSelectResult(r)}
-                  className={`w-full text-left flex items-center gap-2 px-3 py-1 text-[13px] transition-colors ${
-                    isFocusedDetail(r.assetClass, sym)
-                      ? 'bg-bg-tertiary text-text'
-                      : 'text-text-muted hover:text-text hover:bg-bg-tertiary/50'
-                  }`}
-                >
-                  <span className="font-mono font-semibold text-text truncate">{sym}</span>
-                  {r.name && <span className="text-text-muted truncate flex-1">{r.name}</span>}
-                  <span className={`shrink-0 text-[9px] uppercase tracking-wide px-1 rounded ${ASSET_CLASS_COLORS[r.assetClass]}`}>
-                    {r.assetClass}
-                  </span>
-                </button>
+                  trail={<AssetClassChip cls={r.assetClass} />}
+                />
               )
             })}
           </>
@@ -140,46 +131,48 @@ export function MarketSidebar() {
             Pin assets here from a detail page.
           </p>
         ) : (
-          watchlist.map((entry) => {
-            const active = isFocusedDetail(entry.assetClass, entry.symbol)
-            return (
-              <div
-                key={`${entry.assetClass}:${entry.symbol}`}
-                onClick={() =>
-                  openOrFocus({
-                    kind: 'market-detail',
-                    params: { assetClass: entry.assetClass, symbol: entry.symbol },
-                  })
-                }
-                className={`group flex items-center gap-2 px-3 py-1 text-[13px] cursor-pointer transition-colors ${
-                  active
-                    ? 'bg-bg-tertiary text-text'
-                    : 'text-text-muted hover:text-text hover:bg-bg-tertiary/50'
-                }`}
-              >
-                <span className="font-mono font-semibold text-text truncate flex-1">{entry.symbol}</span>
-                <span className={`shrink-0 text-[9px] uppercase tracking-wide px-1 rounded ${ASSET_CLASS_COLORS[entry.assetClass]}`}>
-                  {entry.assetClass}
-                </span>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    removeFromWatchlist(entry.assetClass, entry.symbol)
-                  }}
-                  className="w-4 h-4 rounded flex items-center justify-center opacity-0 group-hover:opacity-100 text-text-muted/60 hover:text-text hover:bg-bg-tertiary"
-                  aria-label={`Remove ${entry.symbol}`}
-                >
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                    <path d="M18 6L6 18M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-            )
-          })
+          watchlist.map((entry) => (
+            <SidebarRow
+              key={`${entry.assetClass}:${entry.symbol}`}
+              label={<span className="font-mono font-semibold truncate">{entry.symbol}</span>}
+              active={isFocusedDetail(entry.assetClass, entry.symbol)}
+              onClick={() =>
+                openOrFocus({
+                  kind: 'market-detail',
+                  params: { assetClass: entry.assetClass, symbol: entry.symbol },
+                })
+              }
+              trail={
+                <>
+                  <AssetClassChip cls={entry.assetClass} />
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      removeFromWatchlist(entry.assetClass, entry.symbol)
+                    }}
+                    className="w-4 h-4 rounded flex items-center justify-center opacity-0 group-hover:opacity-100 text-text-muted/60 hover:text-text hover:bg-bg-tertiary"
+                    aria-label={`Remove ${entry.symbol}`}
+                  >
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                      <path d="M18 6L6 18M6 6l12 12" />
+                    </svg>
+                  </button>
+                </>
+              }
+            />
+          ))
         )}
       </div>
     </div>
+  )
+}
+
+function AssetClassChip({ cls }: { cls: AssetClass }) {
+  return (
+    <span className={`shrink-0 text-[9px] uppercase tracking-wide px-1 rounded ${ASSET_CLASS_COLORS[cls]}`}>
+      {cls}
+    </span>
   )
 }
 

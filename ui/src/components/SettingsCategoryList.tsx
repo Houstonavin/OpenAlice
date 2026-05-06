@@ -1,5 +1,6 @@
 import { useWorkspace } from '../tabs/store'
 import { getFocusedTab, type ViewSpec } from '../tabs/types'
+import { SidebarRow } from './SidebarRow'
 
 type SettingsCategory = Extract<ViewSpec, { kind: 'settings' }>['params']['category']
 
@@ -26,7 +27,7 @@ const CATEGORIES: CategoryItem[] = [
 /**
  * Settings sidebar — flat list of config categories. Click opens (or
  * focuses) the corresponding tab. Active highlight is driven by the
- * currently-focused tab's spec, not by URL.
+ * currently-focused tab's spec, not by sidebar selection.
  */
 export function SettingsCategoryList() {
   const focused = useWorkspace((state) => getFocusedTab(state)?.spec)
@@ -39,18 +40,12 @@ export function SettingsCategoryList() {
           (focused?.kind === 'settings' && focused.params.category === item.category) ||
           (item.alsoActiveFor != null && focused != null && item.alsoActiveFor.includes(focused.kind))
         return (
-          <button
+          <SidebarRow
             key={item.category}
-            type="button"
+            label={item.label}
+            active={active}
             onClick={() => openOrFocus({ kind: 'settings', params: { category: item.category } })}
-            className={`w-full text-left flex items-center gap-1 px-3 py-1 text-[13px] transition-colors ${
-              active
-                ? 'bg-bg-tertiary text-text'
-                : 'text-text-muted hover:text-text hover:bg-bg-tertiary/50'
-            }`}
-          >
-            <span className="truncate">{item.label}</span>
-          </button>
+          />
         )
       })}
     </div>

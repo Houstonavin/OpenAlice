@@ -1,5 +1,6 @@
 import { useWorkspace } from '../tabs/store'
 import { getFocusedTab, type ViewSpec } from '../tabs/types'
+import { SidebarRow } from './SidebarRow'
 
 type DevTab = Extract<ViewSpec, { kind: 'dev' }>['params']['tab']
 
@@ -30,18 +31,12 @@ export function DevCategoryList() {
       {CATEGORIES.map((item) => {
         const active = focused?.kind === 'dev' && focused.params.tab === item.tab
         return (
-          <button
+          <SidebarRow
             key={item.tab}
-            type="button"
+            label={item.label}
+            active={active}
             onClick={() => openOrFocus({ kind: 'dev', params: { tab: item.tab } })}
-            className={`w-full text-left flex items-center gap-1 px-3 py-1 text-[13px] transition-colors ${
-              active
-                ? 'bg-bg-tertiary text-text'
-                : 'text-text-muted hover:text-text hover:bg-bg-tertiary/50'
-            }`}
-          >
-            <span className="truncate">{item.label}</span>
-          </button>
+          />
         )
       })}
     </div>

@@ -1,11 +1,12 @@
 import { useTradingConfig } from '../hooks/useTradingConfig'
 import { useWorkspace } from '../tabs/store'
 import { getFocusedTab } from '../tabs/types'
+import { SidebarRow } from './SidebarRow'
 
 /**
  * Portfolio sidebar — Overview + per-UTA accounts.
  *
- * - "Overview" opens the aggregate portfolio tab (`kind: 'portfolio'`).
+ * - "All Accounts" opens the aggregate portfolio tab (`kind: 'portfolio'`).
  * - Each UTA row opens that account's detail tab (`kind: 'uta-detail'`).
  *
  * Active highlight is derived from the focused tab's spec, not from the
@@ -24,17 +25,11 @@ export function PortfolioSidebar() {
     <div className="flex flex-col h-full overflow-hidden">
       <div className="flex-1 overflow-y-auto min-h-0 py-0.5">
         <SidebarSectionHeader>Overview</SidebarSectionHeader>
-        <button
-          type="button"
+        <SidebarRow
+          label="All Accounts"
+          active={overviewActive}
           onClick={() => openOrFocus({ kind: 'portfolio', params: {} })}
-          className={`w-full text-left flex items-center gap-1 px-3 py-1 text-[13px] transition-colors ${
-            overviewActive
-              ? 'bg-bg-tertiary text-text'
-              : 'text-text-muted hover:text-text hover:bg-bg-tertiary/50'
-          }`}
-        >
-          All Accounts
-        </button>
+        />
 
         <SidebarSectionHeader>
           Accounts{!loading && utas.length > 0 ? ` (${utas.length})` : ''}
@@ -51,23 +46,20 @@ export function PortfolioSidebar() {
             const active = focusedUtaId === uta.id
             const display = uta.label?.trim() || uta.id
             return (
-              <button
+              <SidebarRow
                 key={uta.id}
-                type="button"
+                label={display}
+                active={active}
+                dim={!uta.enabled}
                 onClick={() =>
                   openOrFocus({ kind: 'uta-detail', params: { id: uta.id } })
                 }
-                className={`w-full text-left flex items-center gap-1.5 px-3 py-1 text-[13px] transition-colors ${
-                  active
-                    ? 'bg-bg-tertiary text-text'
-                    : 'text-text-muted hover:text-text hover:bg-bg-tertiary/50'
-                } ${uta.enabled ? '' : 'opacity-60'}`}
-              >
-                <span className="truncate flex-1">{display}</span>
-                {!uta.enabled && (
-                  <span className="text-[9px] uppercase tracking-wide text-text-muted/60">off</span>
-                )}
-              </button>
+                trail={
+                  !uta.enabled ? (
+                    <span className="text-[9px] uppercase tracking-wide text-text-muted/60">off</span>
+                  ) : undefined
+                }
+              />
             )
           })
         )}

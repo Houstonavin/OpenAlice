@@ -18,29 +18,21 @@
  * machinery available; later phases enforce it.
  */
 
-import { Contract, UNSET_DOUBLE } from '@traderalice/ibkr'
+import { Contract, UNSET_DOUBLE, type SecType } from '@traderalice/ibkr'
 
-// ==================== SecType union ====================
-
-/**
- * Canonical security types. Adding a new type:
- *   1. Add to this union.
- *   2. Add a row to `SECTYPE_REQUIREMENTS` describing the required fields.
- *   3. Update consumers' exhaustive switches (TS will surface them).
- */
-export type SecType =
-  | 'STK'
-  | 'OPT'
-  | 'FUT'
-  | 'FOP'    // futures option
-  | 'CASH'   // forex
-  | 'BOND'
-  | 'WAR'    // warrant
-  | 'CRYPTO'
-  | 'CRYPTO_PERP'
+// Re-export so callers under `domain/trading/*` can keep importing SecType
+// from this module — the canonical definition lives in @traderalice/ibkr
+// alongside the Contract class. See the policy doc on `SecType` there:
+// no new secTypes without explicit sign-off; CRYPTO/CRYPTO_PERP are the
+// only intentional deviations from IBKR's documented taxonomy.
+export type { SecType }
 
 export const SEC_TYPES: readonly SecType[] = [
-  'STK', 'OPT', 'FUT', 'FOP', 'CASH', 'BOND', 'WAR', 'CRYPTO', 'CRYPTO_PERP',
+  // IBKR canonical
+  'STK', 'OPT', 'FUT', 'FOP', 'IND', 'CASH', 'BOND', 'CMDTY',
+  'WAR', 'IOPT', 'FUND', 'BAG', 'NEWS', 'CFD', 'CRYPTO',
+  // OpenAlice-only extension
+  'CRYPTO_PERP',
 ] as const
 
 const SEC_TYPE_SET = new Set<string>(SEC_TYPES)

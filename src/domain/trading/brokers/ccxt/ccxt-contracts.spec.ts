@@ -18,12 +18,7 @@ import type { CcxtMarket } from './ccxt-types.js'
 function makeMarket(overrides: Partial<CcxtMarket> & { type: CcxtMarket['type']; base: string; quote: string; symbol: string }): CcxtMarket {
   return {
     id: overrides.symbol,
-    symbol: overrides.symbol,
-    base: overrides.base,
-    quote: overrides.quote,
-    type: overrides.type,
     active: true,
-    settle: overrides.settle,
     ...overrides,
   } as CcxtMarket
 }

@@ -23,7 +23,13 @@ function makeContract(overrides: Partial<Contract> = {}): Contract {
 
 describe('SecType taxonomy', () => {
   it('SEC_TYPES covers the documented set', () => {
-    expect(SEC_TYPES).toEqual(['STK', 'OPT', 'FUT', 'FOP', 'CASH', 'BOND', 'WAR', 'CRYPTO', 'CRYPTO_PERP'])
+    expect(SEC_TYPES).toEqual([
+      // IBKR canonical taxonomy (mirrors TWS API)
+      'STK', 'OPT', 'FUT', 'FOP', 'IND', 'CASH', 'BOND', 'CMDTY',
+      'WAR', 'IOPT', 'FUND', 'BAG', 'NEWS', 'CFD', 'CRYPTO',
+      // OpenAlice extension (only allowed deviation from IBKR)
+      'CRYPTO_PERP',
+    ])
   })
 
   it('isSecType narrows correctly', () => {
@@ -52,7 +58,11 @@ describe('validateContract — universal fields', () => {
 
   it('rejects unknown secType', () => {
     const c = makeContract()
-    c.secType = 'BANANA'
+    // Forced cast — TS would reject the literal at compile time (which is the
+    // whole point of the SecType union). The test is verifying the runtime
+    // validator catches the same shape if it were to slip through e.g. a JSON
+    // load from an old commit.json.
+    c.secType = 'BANANA' as unknown as typeof c.secType
     const r = validateContract(c)
     expect(r.ok).toBe(false)
     if (!r.ok) expect(r.errors.some(e => /secType .* not a known SecType/.test(e))).toBe(true)

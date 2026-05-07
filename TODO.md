@@ -78,25 +78,6 @@ the item when done — git log is the history.
 
 ## Bugs
 
-- [ ] UTA cost-basis bootstrap overwrites broker's real avgCost with
-      markPrice on first sight. Surfaced 2026-05-07 via the simulator
-      covered-call test: MockBroker reports AAPL stock avgCost=$148.50
-      and short AAPL 150C avgCost=$3.20; UTA `getPositions()` returns
-      both with avgCost == current markPrice and unrealizedPnL=0.
-      Root: the `recomputeCostBasisFromGit` + `reconcileBalance`
-      bootstrap pipeline was designed to handle CCXT spot (where
-      broker's avgCost is itself faked from markPrice), but it
-      generalized to ALL `avgCostSource: 'wallet'` positions and now
-      destroys correct data on Mock / Alpaca / IBKR / etc.
-      Fix direction: distinguish "broker is honest about avgCost" from
-      "broker is bullshitting" — likely a finer-grained source label
-      (e.g. `'wallet-mark-bootstrap'` vs `'broker'`) or a per-broker
-      capability flag. CCXT spot keeps mark-bootstrap; everyone else
-      bootstraps at broker-reported avgCost.
-      Files: `src/domain/trading/UnifiedTradingAccount.ts` (the
-      reconcile loop), `src/domain/trading/cost-basis.ts`,
-      `src/domain/trading/brokers/types.ts` (Position.avgCostSource).
-
 - [ ] Snapshot / FX: after currency conversion, snapshot values
       occasionally come out as wildly wrong numbers (reported, cause
       unknown). Likely a direction mistake (multiply vs divide) or

@@ -407,6 +407,8 @@ export class AlpacaBroker implements IBroker {
         marketValue: new Decimal(p.market_value).abs().toString(),
         unrealizedPnL: new Decimal(p.unrealized_pl).toString(),
         realizedPnL: '0',
+        // Alpaca is STK-only — canonical multiplier is always '1'.
+        multiplier: '1',
       }))
     } catch (err) {
       throw BrokerError.from(err)

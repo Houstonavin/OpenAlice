@@ -31,6 +31,7 @@ import type {
   TpSlParams,
 } from '../types.js'
 import '../../contract-ext.js'
+import { derivePositionMath } from '../../position-math.js'
 
 // ==================== Helpers ====================
 
@@ -120,6 +121,7 @@ export function makePosition(overrides: Partial<Position> = {}): Position {
     marketValue: '1600',
     unrealizedPnL: '100',
     realizedPnL: '0',
+    multiplier: '1',
     ...overrides,
   }
 }
@@ -375,10 +377,15 @@ export class MockBroker implements IBroker {
     let marketValueAcc = new Decimal(0)
     for (const pos of this._positions.values()) {
       const price = pos.marketPriceOverride ?? this._markPriceFor(pos.contract) ?? pos.avgCost
-      const mult = multiplierOf(pos.contract)
-      const posValue = pos.quantity.mul(price).mul(mult)
-      marketValueAcc = marketValueAcc.plus(posValue)
-      unrealizedPnL = unrealizedPnL.plus(pos.quantity.mul(price.minus(pos.avgCost)).mul(mult))
+      const { marketValue, unrealizedPnL: pnl } = derivePositionMath({
+        quantity: pos.quantity,
+        marketPrice: price,
+        avgCost: pos.avgCost,
+        multiplier: pos.contract.multiplier || '1',
+        side: pos.side,
+      })
+      marketValueAcc = marketValueAcc.plus(marketValue)
+      unrealizedPnL = unrealizedPnL.plus(pnl)
     }
 
     return {
@@ -396,11 +403,14 @@ export class MockBroker implements IBroker {
     const result: Position[] = []
     for (const pos of this._positions.values()) {
       const price = pos.marketPriceOverride ?? this._markPriceFor(pos.contract) ?? pos.avgCost
-      // Per IBroker.Position contract: marketValue / unrealizedPnL must be
-      // multiplier-applied at the broker layer. For OPT (×100) and futures
-      // (per-contract size), the simulator has to fold multiplier in here
-      // or downstream cost-basis ends up reporting per-unit numbers.
-      const mult = multiplierOf(pos.contract)
+      const multiplier = pos.contract.multiplier || '1'
+      const { marketValue, unrealizedPnL } = derivePositionMath({
+        quantity: pos.quantity,
+        marketPrice: price,
+        avgCost: pos.avgCost,
+        multiplier,
+        side: pos.side,
+      })
       result.push({
         contract: pos.contract,
         currency: pos.contract.currency || 'USD',
@@ -408,10 +418,10 @@ export class MockBroker implements IBroker {
         quantity: pos.quantity,
         avgCost: pos.avgCost.toString(),
         marketPrice: price.toString(),
-        marketValue: pos.quantity.mul(price).mul(mult).toString(),
-        unrealizedPnL: pos.quantity.mul(price.minus(pos.avgCost)).mul(mult).toString(),
+        marketValue,
+        unrealizedPnL,
         realizedPnL: '0',
-        ...(pos.contract.multiplier && { multiplier: pos.contract.multiplier }),
+        multiplier,
         ...(pos.avgCostSource && { avgCostSource: pos.avgCostSource }),
       })
     }

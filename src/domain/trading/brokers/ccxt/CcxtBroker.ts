@@ -624,6 +624,8 @@ export class CcxtBroker implements IBroker<CcxtBrokerMeta> {
         marketValue: marketValue.toString(),
         unrealizedPnL: '0',
         realizedPnL: '0',
+        // CCXT spot has no IBKR-style multiplier; canonical default is '1'.
+        multiplier: '1',
         avgCostSource: 'wallet',
       })
     }
@@ -735,6 +737,11 @@ export class CcxtBroker implements IBroker<CcxtBrokerMeta> {
           marketValue: marketValue.toString(),
           unrealizedPnL: unrealizedPnL.toString(),
           realizedPnL: new Decimal(String((p as unknown as Record<string, unknown>).realizedPnl ?? 0)).toString(),
+          // CCXT contract size is folded into `quantity = contracts × contractSize`
+          // upstream, so `multiplier` here is canonical 1 (matches IBKR's view of
+          // the position). If a future CCXT exchange exposes a separate IBKR-style
+          // multiplier, plumb it via marketToContract.
+          multiplier: '1',
           avgCostSource: 'broker',
         })
       }

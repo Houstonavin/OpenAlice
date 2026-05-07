@@ -430,6 +430,8 @@ export class LeverupBroker implements IBroker {
           marketValue: margin.toString(),
           unrealizedPnL: '0',  // not directly given by REST; future: compute mark - entry
           realizedPnL: '0',
+          // LeverUp perps don't expose a contract multiplier; canonical default is '1'.
+          multiplier: '1',
         })
       }
       return out

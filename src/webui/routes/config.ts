@@ -159,9 +159,7 @@ export function createMarketDataRoutes(ctx: EngineContext) {
     eia:              { credField: 'eia_api_key',              provider: 'eia',              model: 'ShortTermEnergyOutlook',  params: {} },
     econdb:           { credField: 'econdb_api_key',           provider: 'econdb',           model: 'AvailableIndicators',     params: {} },
     fmp:              { credField: 'fmp_api_key',              provider: 'fmp',              model: 'EquityScreener',          params: { limit: 1 } },
-    nasdaq:           { credField: 'nasdaq_api_key',           provider: 'nasdaq',           model: 'EquitySearch',            params: { query: 'AAPL', is_symbol: true } },
     intrinio:         { credField: 'intrinio_api_key',         provider: 'intrinio',         model: 'EquitySearch',            params: { query: 'AAPL', limit: 1 } },
-    tradingeconomics: { credField: 'tradingeconomics_api_key', provider: 'tradingeconomics', model: 'EconomicCalendar',        params: {} },
   }
 
   const app = new Hono()

@@ -27,6 +27,8 @@ import type {
   OptionsChainsData, OptionsSnapshotsData, OptionsUnusualData,
   // Commodity
   CommoditySpotPriceData,
+  // Economy (FRED)
+  FredSearchData, FredSeriesData, FredRegionalData,
 } from '@traderalice/opentypebb'
 
 export interface EquityClientLike {
@@ -80,6 +82,12 @@ export interface IndexClientLike {
 
 export interface CommodityClientLike {
   getSpotPrices(params: Record<string, unknown>): Promise<CommoditySpotPriceData[]>
+}
+
+export interface EconomyClientLike {
+  fredSearch(params: Record<string, unknown>): Promise<FredSearchData[]>
+  fredSeries(params: Record<string, unknown>): Promise<FredSeriesData[]>
+  fredRegional(params: Record<string, unknown>): Promise<FredRegionalData[]>
 }
 
 export interface DerivativesClientLike {

@@ -71,3 +71,50 @@ describe('market-data e2e — FRED via webui routes', () => {
     if (ca) console.log(`  California 2024 per-capita personal income: $${ca.value}`)
   })
 })
+
+// EIA endpoints sit under /commodity/* (OpenBB upstream classification),
+// not /economy/*. Provider must be explicit because the commodity asset
+// class default provider is yfinance, which has no EIA fetchers.
+describe('market-data e2e — EIA via webui routes', () => {
+  beforeEach(({ skip }) => { if (!hasProviderKey(t.config, 'eia')) skip('no eia key in config') })
+
+  it('test-provider endpoint reports ok for valid eia key', async () => {
+    // Catches the same class of bugs FRED had: provider name + cred field
+    // alignment. EIA had its own twist — declared `credentials: ['eia_api_key']`
+    // (already prefixed) so the constructor double-prefixed to `eia_eia_api_key`.
+    const key = t.config.marketData.providerKeys!.eia!
+    const r = await postJson(t.app, '/api/market-data/test-provider', { provider: 'eia', key })
+    expect(r.status).toBe(200)
+    if (!r.data.ok) console.log('  test-provider error:', r.data.error)
+    expect(r.data.ok).toBe(true)
+  })
+
+  it('short_term_energy_outlook returns recent + forecast rows', async () => {
+    // STEO returns ~10 years of monthly data, mixing observed and forecast.
+    // Catches: PHP-bracket sort param (was JSON.stringify, EIA returned 403);
+    // string→number coercion of `value` (EIA wire format is string).
+    const rows = await getJson(
+      t.app,
+      '/api/market-data-v1/commodity/short_term_energy_outlook?provider=eia&category=crude_oil_price',
+    )
+    expect(rows.length).toBeGreaterThan(60)
+    expect(typeof rows[0].value).toBe('number')
+    const hasForecast = rows.some(r => r.forecast === true)
+    expect(hasForecast).toBe(true)
+    const last = rows[rows.length - 1]
+    console.log(`  STEO crude oil price latest: ${last.date} = $${last.value} (forecast=${last.forecast})`)
+  })
+
+  it('petroleum_status_report returns weekly inventory rows', async () => {
+    const rows = await getJson(
+      t.app,
+      '/api/market-data-v1/commodity/petroleum_status_report?provider=eia&category=crude_oil_stocks',
+    )
+    expect(rows.length).toBeGreaterThan(50)  // ~5 years of weekly data
+    expect(typeof rows[0].value).toBe('number')
+    const last = rows[rows.length - 1]
+    const lastDate = new Date(last.date)
+    expect(lastDate.getFullYear()).toBeGreaterThanOrEqual(2025)
+    console.log(`  Crude oil stocks latest: ${last.date} = ${last.value} ${last.unit}`)
+  })
+})

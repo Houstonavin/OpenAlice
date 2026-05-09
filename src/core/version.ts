@@ -135,7 +135,12 @@ export async function fetchLatestRelease(opts?: {
   }
 
   try {
-    const url = `https://api.github.com/repos/${slug.owner}/${slug.repo}/releases/latest`
+    // Use /releases (not /releases/latest) — the latter excludes
+    // prerelease tags by default. We accept prereleases as valid
+    // updates because most active projects (including this one)
+    // ship -beta/-rc versions before stable. Drafts are still
+    // skipped explicitly.
+    const url = `https://api.github.com/repos/${slug.owner}/${slug.repo}/releases?per_page=10`
     const res = await fetch(url, {
       headers: { 'Accept': 'application/vnd.github+json' },
       signal: AbortSignal.timeout(10_000),
@@ -145,9 +150,12 @@ export async function fetchLatestRelease(opts?: {
       cache = { fetchedAt: now, result: null, error }
       return { result: null, error }
     }
-    const data = await res.json() as { tag_name?: string; html_url?: string; body?: string; published_at?: string }
-    if (!data.tag_name) {
-      cache = { fetchedAt: now, result: null, error: 'No tag_name in release' }
+    type ReleaseRow = { tag_name?: string; html_url?: string; body?: string; published_at?: string; draft?: boolean; prerelease?: boolean }
+    const list = await res.json() as ReleaseRow[]
+    // GitHub returns newest-first by default. Take the first non-draft.
+    const data = Array.isArray(list) ? list.find((r) => !r.draft && r.tag_name) : null
+    if (!data || !data.tag_name) {
+      cache = { fetchedAt: now, result: null, error: 'No published releases found' }
       return { result: null, error: cache.error }
     }
     const result: LatestRelease = {

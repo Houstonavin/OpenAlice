@@ -66,17 +66,21 @@ describe('fetchLatestRelease (mocked fetch)', () => {
     globalThis.fetch = origFetch
   })
 
-  it('returns the parsed release on success', async () => {
+  it('returns the parsed release on success (array shape, takes first non-draft)', async () => {
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
       statusText: 'OK',
-      json: async () => ({
-        tag_name: 'v1.2.3',
-        html_url: 'https://github.com/owner/repo/releases/tag/v1.2.3',
-        body: '## Changelog',
-        published_at: '2026-05-09T00:00:00Z',
-      }),
+      json: async () => ([
+        {
+          tag_name: 'v1.2.3',
+          html_url: 'https://github.com/owner/repo/releases/tag/v1.2.3',
+          body: '## Changelog',
+          published_at: '2026-05-09T00:00:00Z',
+          draft: false,
+          prerelease: true,
+        },
+      ]),
     }) as unknown as typeof fetch
 
     const { result, error } = await fetchLatestRelease()
@@ -86,28 +90,62 @@ describe('fetchLatestRelease (mocked fetch)', () => {
     expect(result?.body).toBe('## Changelog')
   })
 
+  it('skips draft releases', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true, status: 200, statusText: 'OK',
+      json: async () => ([
+        { tag_name: 'v2.0.0', html_url: 'x', body: '', published_at: '', draft: true, prerelease: false },
+        { tag_name: 'v1.0.0', html_url: 'y', body: '', published_at: '', draft: false, prerelease: false },
+      ]),
+    }) as unknown as typeof fetch
+
+    const { result } = await fetchLatestRelease()
+    expect(result?.version).toBe('1.0.0') // first non-draft
+  })
+
+  it('accepts prereleases as updates', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true, status: 200, statusText: 'OK',
+      json: async () => ([
+        { tag_name: 'v0.10.0-beta.0', html_url: 'x', body: '', published_at: '', draft: false, prerelease: true },
+      ]),
+    }) as unknown as typeof fetch
+
+    const { result } = await fetchLatestRelease()
+    expect(result?.version).toBe('0.10.0-beta.0')
+  })
+
+  it('returns error when no published releases found', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true, status: 200, statusText: 'OK',
+      json: async () => ([]),
+    }) as unknown as typeof fetch
+    const { result, error } = await fetchLatestRelease()
+    expect(result).toBeNull()
+    expect(error).toContain('No published releases')
+  })
+
   it('returns error and caches it on HTTP failure', async () => {
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: false, status: 404, statusText: 'Not Found',
-      json: async () => ({}),
+      json: async () => ([]),
     }) as unknown as typeof fetch
 
     const r1 = await fetchLatestRelease()
     expect(r1.error).toContain('404')
 
-    // Second call should hit cache, not fetch again
     const fetchSpy = globalThis.fetch as unknown as ReturnType<typeof vi.fn>
     const callsBefore = fetchSpy.mock.calls.length
     const r2 = await fetchLatestRelease()
     const callsAfter = fetchSpy.mock.calls.length
-    expect(callsAfter).toBe(callsBefore) // no new request
+    expect(callsAfter).toBe(callsBefore)
     expect(r2.error).toBe(r1.error)
   })
 
   it('caches success responses', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true, status: 200, statusText: 'OK',
-      json: async () => ({ tag_name: 'v1.0.0', html_url: 'x', body: '', published_at: '' }),
+      json: async () => ([{ tag_name: 'v1.0.0', html_url: 'x', body: '', published_at: '', draft: false, prerelease: false }]),
     })
     globalThis.fetch = fetchMock as unknown as typeof fetch
 
@@ -131,12 +169,13 @@ describe('getVersionInfo', () => {
   it('reports hasUpdate=true when latest > current', async () => {
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true, status: 200, statusText: 'OK',
-      json: async () => ({
+      json: async () => ([{
         tag_name: 'v999.999.999',
         html_url: 'https://example.com',
         body: '',
         published_at: '2026-05-09T00:00:00Z',
-      }),
+        draft: false, prerelease: false,
+      }]),
     }) as unknown as typeof fetch
 
     const info = await getVersionInfo()
@@ -149,7 +188,7 @@ describe('getVersionInfo', () => {
     const current = getCurrentVersion()
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true, status: 200, statusText: 'OK',
-      json: async () => ({ tag_name: current, html_url: 'x', body: '', published_at: '' }),
+      json: async () => ([{ tag_name: current, html_url: 'x', body: '', published_at: '', draft: false, prerelease: false }]),
     }) as unknown as typeof fetch
 
     const info = await getVersionInfo()

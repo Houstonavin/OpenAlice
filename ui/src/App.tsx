@@ -4,6 +4,7 @@ import { ActivityBar } from './components/ActivityBar'
 import { Sidebar } from './components/Sidebar'
 import { TabHost } from './components/TabHost'
 import { ChannelConfigModal } from './components/ChannelConfigModal'
+import { UpdateBanner } from './components/UpdateBanner'
 import { ChannelsProvider, useChannels } from './contexts/ChannelsContext'
 import { findSectionForActivity } from './sections'
 import { UrlAdopter } from './tabs/UrlAdopter'
@@ -85,36 +86,39 @@ function AppShell() {
   )
 
   return (
-    <div className="flex h-full">
-      <ActivityBar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+    <div className="flex flex-col h-full">
+      <UpdateBanner />
+      <div className="flex flex-1 min-h-0">
+        <ActivityBar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-      <Group
-        orientation="horizontal"
-        id="main-layout"
-        className="flex-1 min-h-0"
-        defaultLayout={savedLayout ?? fallbackLayout}
-        onLayoutChanged={onLayoutChanged}
-      >
-        {showSidebarPanel && section && (
-          <>
-            <Panel id="sidebar" defaultSize={240} minSize={150} maxSize={500}>
-              <Sidebar
-                title={section.title}
-                actions={section.Actions ? <section.Actions /> : undefined}
-              >
-                <section.Secondary />
-              </Sidebar>
-            </Panel>
-            <Separator className="w-px bg-border hover:bg-accent/40 active:bg-accent/60 transition-colors" />
-          </>
-        )}
-        <Panel id="main">
-          {mainContent}
-        </Panel>
-      </Group>
+        <Group
+          orientation="horizontal"
+          id="main-layout"
+          className="flex-1 min-h-0"
+          defaultLayout={savedLayout ?? fallbackLayout}
+          onLayoutChanged={onLayoutChanged}
+        >
+          {showSidebarPanel && section && (
+            <>
+              <Panel id="sidebar" defaultSize={240} minSize={150} maxSize={500}>
+                <Sidebar
+                  title={section.title}
+                  actions={section.Actions ? <section.Actions /> : undefined}
+                >
+                  <section.Secondary />
+                </Sidebar>
+              </Panel>
+              <Separator className="w-px bg-border hover:bg-accent/40 active:bg-accent/60 transition-colors" />
+            </>
+          )}
+          <Panel id="main">
+            {mainContent}
+          </Panel>
+        </Group>
 
-      <UrlAdopter />
-      <ChannelDialogMount />
+        <UrlAdopter />
+        <ChannelDialogMount />
+      </div>
     </div>
   )
 }

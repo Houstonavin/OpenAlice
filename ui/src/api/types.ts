@@ -1,3 +1,22 @@
+// ==================== Version / Update awareness ====================
+
+export interface VersionInfo {
+  /** App version from package.json. */
+  current: string
+  /** Latest release tag from GitHub, or null if fetch failed / no releases. */
+  latest: string | null
+  /** True when latest > current (semver). */
+  hasUpdate: boolean
+  /** GitHub release page URL — UI links to this for changelog. */
+  releaseUrl: string | null
+  /** Markdown release body. */
+  releaseNotes: string | null
+  /** ISO timestamp when the release was published. */
+  publishedAt: string | null
+  /** Non-null when fetch failed (rate limit, network, etc.). */
+  error: string | null
+}
+
 // ==================== AI Provider Profiles ====================
 
 export type AIBackend = 'agent-sdk' | 'codex' | 'vercel-ai-sdk'

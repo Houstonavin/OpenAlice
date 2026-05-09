@@ -9,26 +9,21 @@
  * need to change in this round (resolveProfile() joins the two and
  * returns the same ResolvedProfile shape).
  *
- * Vendor inference rules (see plan for full table):
- *   backend=codex                                          → openai
- *   backend=agent-sdk + loginMethod=claudeai               → anthropic (subscription)
- *   backend=agent-sdk + baseUrl matches GLM/MiniMax/Kimi/DeepSeek → that vendor
- *   backend=agent-sdk + api-key + other                    → anthropic
- *   backend=vercel-ai-sdk                                  → from profile.provider
- *   fallback                                                → custom
+ * Vendor / authType inference rules: see src/core/credential-inference.ts.
  *
  * In-body idempotency: if the credentials map exists and every
  * profile either has credentialSlug or has nothing to extract, no-op.
  */
 
 import type { Migration, MigrationContext } from '../types.js'
+import {
+  inferVendor,
+  inferAuthType,
+  hasExtractableCredential,
+  type ProfileLike,
+} from '../../core/credential-inference.js'
 
-interface RawProfile extends Record<string, unknown> {
-  backend?: string
-  loginMethod?: string
-  apiKey?: string
-  baseUrl?: string
-  provider?: string
+interface RawProfile extends Record<string, unknown>, ProfileLike {
   credentialSlug?: string
 }
 
@@ -37,51 +32,6 @@ interface CredentialRecord {
   authType: 'api-key' | 'subscription'
   apiKey?: string
   baseUrl?: string
-}
-
-const VENDORS_BY_BASEURL: Array<[RegExp, string]> = [
-  [/bigmodel\.cn|z\.ai/i, 'glm'],
-  [/minimaxi\.com|minimax\.io/i, 'minimax'],
-  [/moonshot\.cn|moonshot\.ai/i, 'kimi'],
-  [/deepseek\.com/i, 'deepseek'],
-]
-
-function inferVendor(profile: RawProfile): string {
-  const backend = profile.backend
-  const loginMethod = profile.loginMethod
-  const baseUrl = (profile.baseUrl ?? '') as string
-
-  if (backend === 'codex') return 'openai'
-
-  if (backend === 'agent-sdk' && loginMethod === 'claudeai') return 'anthropic'
-
-  if (backend === 'agent-sdk') {
-    for (const [pattern, vendor] of VENDORS_BY_BASEURL) {
-      if (pattern.test(baseUrl)) return vendor
-    }
-    return 'anthropic'
-  }
-
-  if (backend === 'vercel-ai-sdk') {
-    const provider = profile.provider as string | undefined
-    if (provider === 'openai' || provider === 'google' || provider === 'anthropic') return provider
-    return 'anthropic'
-  }
-
-  return 'custom'
-}
-
-function inferAuthType(profile: RawProfile): 'api-key' | 'subscription' {
-  if (profile.loginMethod === 'claudeai' || profile.loginMethod === 'codex-oauth') {
-    return 'subscription'
-  }
-  return 'api-key'
-}
-
-function hasExtractableCredential(profile: RawProfile): boolean {
-  if (profile.apiKey) return true
-  if (profile.loginMethod === 'claudeai' || profile.loginMethod === 'codex-oauth') return true
-  return false
 }
 
 function generateSlug(vendor: string, taken: Set<string>): string {
@@ -99,7 +49,7 @@ export const migration: Migration = {
     'Extract apiKey/baseUrl from profiles into top-level credentials map; profiles gain credentialSlug pointer (inline fields kept as fallback)',
   rationale:
     'Decouple credentials (vendor + auth) from SDK choice (backend) and use-case (model). Foundation for vendor-shaped preset catalog and internal SDK routing.',
-  up: async (ctx) => {
+  up: async (ctx: MigrationContext) => {
     const aiConfig = await ctx.readJson<{
       profiles?: Record<string, RawProfile>
       credentials?: Record<string, CredentialRecord>
@@ -129,8 +79,8 @@ export const migration: Migration = {
       const vendor = inferVendor(profile)
       const authType = inferAuthType(profile)
       const cred: CredentialRecord = { vendor, authType }
-      if (profile.apiKey) cred.apiKey = profile.apiKey as string
-      if (profile.baseUrl) cred.baseUrl = profile.baseUrl as string
+      if (profile.apiKey) cred.apiKey = profile.apiKey
+      if (profile.baseUrl) cred.baseUrl = profile.baseUrl
 
       const slug = generateSlug(vendor, taken)
       taken.add(slug)

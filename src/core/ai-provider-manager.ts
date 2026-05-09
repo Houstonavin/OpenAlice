@@ -7,8 +7,10 @@
  */
 
 import { resolveProfile } from './config.js'
-import type { ResolvedProfile } from './config.js'
+import type { Credential, ResolvedProfile } from './config.js'
 import type { ProviderEvent, ProviderResult, AIProvider } from '../ai-providers/types.js'
+import { invokeAdapter, resolveTestAdapter } from '../ai-providers/sdk-adapters.js'
+import { PRESET_CATALOG } from '../ai-providers/preset-catalog.js'
 
 export type {
   ProviderEvent, ProviderResult, AIProvider,
@@ -98,7 +100,9 @@ export interface AskOptions {
 
 /** Resolves profile → AIProvider instance + resolved config. */
 export class GenerateRouter {
-  private providers: Record<string, AIProvider>
+  /** Public so SDK adapter invokers can delegate to the heavy providers
+   *  (agent-sdk / codex) without re-wiring. Treated as readonly by callers. */
+  public readonly providers: Record<string, AIProvider>
 
   constructor(
     vercel: AIProvider,
@@ -135,5 +139,23 @@ export class GenerateRouter {
     const provider = this.providers[profile.backend]
     if (!provider) throw new Error(`No provider registered for backend: ${profile.backend}`)
     return provider.ask(prompt, profile)
+  }
+
+  /**
+   * Test-path entry — preset-driven SDK adapter selection.
+   *
+   * Looks up the profile's preset in PRESET_CATALOG, picks the
+   * declared `test` adapter, builds the SDK config from the credential
+   * via the preset's mapping function, and dispatches to the matching
+   * invoker. Falls back to honoring `profile.backend` when no preset
+   * is registered (Custom or legacy data).
+   */
+  async askForTest(
+    prompt: string,
+    profile: ResolvedProfile,
+    credential: Credential,
+  ): Promise<ProviderResult> {
+    const decl = resolveTestAdapter(profile, PRESET_CATALOG)
+    return invokeAdapter(decl, credential, profile.model, prompt, { providers: this.providers })
   }
 }

@@ -686,6 +686,9 @@ export interface ResolvedProfile {
   baseUrl?: string
   loginMethod?: string
   provider?: string
+  /** Pointer into AIProviderConfig.credentials. Preserved on the resolved
+   *  shape so callers can fetch the credential separately when needed. */
+  credentialSlug?: string
 }
 
 /**

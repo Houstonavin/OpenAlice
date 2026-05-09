@@ -49,6 +49,8 @@ import { createMetricsListener } from './task/metrics/index.js'
 import { createTaskRouter } from './task/task-router/index.js'
 import { NewsCollectorStore, NewsCollector } from './domain/news/index.js'
 import { createNewsArchiveTools } from './tool/news.js'
+import { createWhaleSignalsTools } from './tool/whale-signals.js'
+import { createWhaleExecuteTools } from './tool/whale-execute.js'
 
 // ==================== Persistence paths ====================
 
@@ -244,6 +246,17 @@ async function main() {
   }
   toolCenter.register(createAnalysisTools(equityClient, cryptoClient, currencyClient, commodityClient), 'analysis')
   toolCenter.register(createEconomyTools(economyClient, commodityClient), 'economy')
+
+  // Whale Trading Stack integration — signal data and trade staging
+  const whaleSignalApiUrl = process.env.WHALE_SIGNAL_API_URL ?? 'http://localhost:5000'
+  toolCenter.register(createWhaleSignalsTools({ signalApiUrl: whaleSignalApiUrl }), 'whale-signals')
+  toolCenter.register(
+    createWhaleExecuteTools({
+      utaManager,
+      redisUrl: process.env.REDIS_URL ?? 'redis://localhost:6379',
+    }),
+    'whale-execute',
+  )
 
   console.log(`tool-center: ${toolCenter.list().length} tools registered`)
 

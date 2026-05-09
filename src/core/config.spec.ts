@@ -27,6 +27,12 @@ import {
   writeUTAsConfig,
   aiProviderSchema,
   profileSchema,
+  resolveProfile,
+  resolveCredential,
+  deleteCredential,
+  credentialSchema,
+  extractCredentialFromProfile,
+  type Profile,
 } from './config.js'
 
 const mockReadFile = vi.mocked(readFile)
@@ -322,5 +328,189 @@ describe('profileSchema', () => {
 
   it('rejects unknown backend', () => {
     expect(() => profileSchema.parse({ backend: 'unknown', label: 'X', model: 'y' })).toThrow()
+  })
+
+  it('accepts credentialSlug', () => {
+    const result = profileSchema.parse({
+      backend: 'agent-sdk', model: 'claude-opus-4-7', loginMethod: 'api-key',
+      credentialSlug: 'anthropic-1',
+    })
+    if (result.backend === 'agent-sdk') {
+      expect(result.credentialSlug).toBe('anthropic-1')
+    }
+  })
+})
+
+// ==================== credentialSchema ====================
+
+describe('credentialSchema', () => {
+  it('validates api-key credential', () => {
+    const result = credentialSchema.parse({ vendor: 'anthropic', authType: 'api-key', apiKey: 'sk-x' })
+    expect(result.vendor).toBe('anthropic')
+    expect(result.authType).toBe('api-key')
+  })
+
+  it('validates subscription credential without apiKey', () => {
+    const result = credentialSchema.parse({ vendor: 'anthropic', authType: 'subscription' })
+    expect(result.apiKey).toBeUndefined()
+  })
+
+  it('rejects unknown vendor', () => {
+    expect(() => credentialSchema.parse({ vendor: 'fake', authType: 'api-key' })).toThrow()
+  })
+})
+
+// ==================== resolveProfile (with credential join) ====================
+
+describe('resolveProfile', () => {
+  it('returns inline shape when credentialSlug is absent', async () => {
+    fileReturns({
+      profiles: { default: { backend: 'agent-sdk', model: 'claude-opus-4-7', loginMethod: 'api-key', apiKey: 'inline-key' } },
+      activeProfile: 'default',
+    })
+    const r = await resolveProfile()
+    expect(r.apiKey).toBe('inline-key')
+    expect(r.baseUrl).toBeUndefined()
+  })
+
+  it('joins credential when credentialSlug is set and inline is absent', async () => {
+    fileReturns({
+      credentials: { 'anthropic-1': { vendor: 'anthropic', authType: 'api-key', apiKey: 'cred-key', baseUrl: 'https://api.example/' } },
+      profiles: { default: { backend: 'agent-sdk', model: 'm', loginMethod: 'api-key', credentialSlug: 'anthropic-1' } },
+      activeProfile: 'default',
+    })
+    const r = await resolveProfile()
+    expect(r.apiKey).toBe('cred-key')
+    expect(r.baseUrl).toBe('https://api.example/')
+  })
+
+  it('inline value wins over credential value (transitional fallback semantics)', async () => {
+    fileReturns({
+      credentials: { 'anthropic-1': { vendor: 'anthropic', authType: 'api-key', apiKey: 'cred-key' } },
+      profiles: {
+        default: {
+          backend: 'agent-sdk', model: 'm', loginMethod: 'api-key',
+          apiKey: 'inline-wins',
+          credentialSlug: 'anthropic-1',
+        },
+      },
+      activeProfile: 'default',
+    })
+    const r = await resolveProfile()
+    expect(r.apiKey).toBe('inline-wins')
+  })
+
+  it('throws when credentialSlug references missing credential', async () => {
+    fileReturns({
+      credentials: {},
+      profiles: { default: { backend: 'agent-sdk', model: 'm', loginMethod: 'api-key', credentialSlug: 'ghost' } },
+      activeProfile: 'default',
+    })
+    await expect(resolveProfile()).rejects.toThrow(/missing credential/)
+  })
+})
+
+// ==================== resolveCredential / deleteCredential ====================
+
+describe('resolveCredential', () => {
+  it('returns the credential by slug', async () => {
+    fileReturns({
+      credentials: { 'openai-1': { vendor: 'openai', authType: 'api-key', apiKey: 'sk-oa' } },
+      profiles: { default: { backend: 'agent-sdk', model: 'm', loginMethod: 'claudeai' } },
+      activeProfile: 'default',
+    })
+    const c = await resolveCredential('openai-1')
+    expect(c.vendor).toBe('openai')
+    expect(c.apiKey).toBe('sk-oa')
+  })
+
+  it('throws when slug is unknown', async () => {
+    fileReturns({
+      credentials: {},
+      profiles: { default: { backend: 'agent-sdk', model: 'm', loginMethod: 'claudeai' } },
+      activeProfile: 'default',
+    })
+    await expect(resolveCredential('nope')).rejects.toThrow(/Unknown credential/)
+  })
+})
+
+describe('deleteCredential', () => {
+  it('errors when a profile still references the credential', async () => {
+    fileReturns({
+      credentials: { 'anthropic-1': { vendor: 'anthropic', authType: 'api-key', apiKey: 'k' } },
+      profiles: {
+        default: { backend: 'agent-sdk', model: 'm', loginMethod: 'api-key', credentialSlug: 'anthropic-1' },
+      },
+      activeProfile: 'default',
+    })
+    await expect(deleteCredential('anthropic-1')).rejects.toThrow(/referenced by profile/)
+  })
+
+  it('deletes when no profile references it', async () => {
+    fileReturns({
+      credentials: { 'orphan-1': { vendor: 'openai', authType: 'api-key', apiKey: 'k' } },
+      profiles: { default: { backend: 'agent-sdk', model: 'm', loginMethod: 'claudeai' } },
+      activeProfile: 'default',
+    })
+    await expect(deleteCredential('orphan-1')).resolves.toBeUndefined()
+    expect(mockWriteFile).toHaveBeenCalled()
+  })
+})
+
+// ==================== extractCredentialFromProfile ====================
+
+describe('extractCredentialFromProfile', () => {
+  it('passes through profile when credentialSlug already set', () => {
+    const profile = { backend: 'agent-sdk', model: 'm', loginMethod: 'api-key', apiKey: 'k', credentialSlug: 'existing' } as Profile
+    const out = extractCredentialFromProfile(profile, {})
+    expect(out.profile).toBe(profile)
+    expect(out.credentials).toEqual({})
+  })
+
+  it('passes through profile when nothing extractable (no apiKey, not subscription)', () => {
+    const profile = { backend: 'agent-sdk', model: 'm', loginMethod: 'api-key' } as Profile
+    const out = extractCredentialFromProfile(profile, {})
+    expect(out.profile.credentialSlug).toBeUndefined()
+    expect(out.credentials).toEqual({})
+  })
+
+  it('creates a new credential and links via slug when no match exists', () => {
+    const profile = {
+      backend: 'agent-sdk', model: 'm', loginMethod: 'api-key',
+      apiKey: 'sk-deep', baseUrl: 'https://api.deepseek.com/anthropic',
+    } as Profile
+    const out = extractCredentialFromProfile(profile, {})
+    expect(out.profile.credentialSlug).toBe('deepseek-1')
+    expect(out.credentials['deepseek-1']).toEqual({
+      vendor: 'deepseek',
+      authType: 'api-key',
+      apiKey: 'sk-deep',
+      baseUrl: 'https://api.deepseek.com/anthropic',
+    })
+  })
+
+  it('reuses existing credential slug when fields match (dedup)', () => {
+    const existing = {
+      'deepseek-1': { vendor: 'deepseek' as const, authType: 'api-key' as const, apiKey: 'sk-d', baseUrl: 'https://api.deepseek.com/anthropic' },
+    }
+    const profile = {
+      backend: 'agent-sdk', model: 'm', loginMethod: 'api-key',
+      apiKey: 'sk-d', baseUrl: 'https://api.deepseek.com/anthropic',
+    } as Profile
+    const out = extractCredentialFromProfile(profile, existing)
+    expect(out.profile.credentialSlug).toBe('deepseek-1')
+    expect(out.credentials).toBe(existing) // reference equality — no new entry
+  })
+
+  it('generates next available slug when vendor matches but fields differ', () => {
+    const existing = {
+      'anthropic-1': { vendor: 'anthropic' as const, authType: 'api-key' as const, apiKey: 'sk-1' },
+    }
+    const profile = {
+      backend: 'agent-sdk', model: 'm', loginMethod: 'api-key', apiKey: 'sk-2',
+    } as Profile
+    const out = extractCredentialFromProfile(profile, existing)
+    expect(out.profile.credentialSlug).toBe('anthropic-2')
+    expect(out.credentials['anthropic-2'].apiKey).toBe('sk-2')
   })
 })

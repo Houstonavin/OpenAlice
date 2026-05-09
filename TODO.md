@@ -57,6 +57,30 @@ the item when done — git log is the history.
       Replace per-broker computation with one shared derive call;
       brokers emit raw fields (qty, markPrice, multiplier, side,
       avgCost) and downstream math is contract-uniform.
+- [ ] Native Anthropic full provider — replaces `agent-sdk` for the
+      api-key chat path so non-subscription Anthropic credentials
+      (Claude API, MiniMax, GLM, Kimi, DeepSeek) stop spawning a
+      Claude Code subprocess every chat turn. Subscription credentials
+      (loginMethod=claudeai) physically need agent-sdk and stay there.
+      Shape: parallel to `CodexProvider` (~270 lines) — uses
+      `@anthropic-ai/sdk` directly, manual tool loop with
+      tool_use/tool_result content blocks, streaming events, history
+      serialization, Vercel→Anthropic tool format conversion. Then
+      wires into `GenerateRouter` (likely as new backend value
+      `anthropic-native`, or replaces `agent-sdk` for non-claudeai
+      profiles via the preset's chat adapter declaration once
+      preset-driven chat routing lands). Cleans up the per-vendor
+      `/v1` baseUrl hack in preset-catalog along the way (native SDK
+      hits `/v1/messages` by default, all four Anthropic-compat
+      vendors accept that path). ~4-6h focused work.
+- [ ] Native OpenAI Chat Completions full provider — companion to the
+      Anthropic native work. Reuses the `openai` SDK we already have
+      (codex provider uses `client.responses.stream()`; this would
+      use `client.chat.completions.stream()`). Lets us drop
+      `vercel-openai` adapter entirely and gives Custom + OpenAI-compat
+      third parties (Together, Groq, vLLM, LM Studio, Ollama) a
+      proper light chat path. Same structural shape as the Anthropic
+      one. ~3-4h.
 - [ ] Unified config hot-reload. Right now every consumer of a config
       section has to solve "did the user edit this?" on its own —
       Telegram/MCP-Ask via `reconnectConnectors`, opentypebb via lazy

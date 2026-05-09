@@ -1,3 +1,22 @@
+// ==================== Version / Update awareness ====================
+
+export interface VersionInfo {
+  /** App version from package.json. */
+  current: string
+  /** Latest release tag from GitHub, or null if fetch failed / no releases. */
+  latest: string | null
+  /** True when latest > current (semver). */
+  hasUpdate: boolean
+  /** GitHub release page URL — UI links to this for changelog. */
+  releaseUrl: string | null
+  /** Markdown release body. */
+  releaseNotes: string | null
+  /** ISO timestamp when the release was published. */
+  publishedAt: string | null
+  /** Non-null when fetch failed (rate limit, network, etc.). */
+  error: string | null
+}
+
 // ==================== AI Provider Profiles ====================
 
 export type AIBackend = 'agent-sdk' | 'codex' | 'vercel-ai-sdk'
@@ -10,6 +29,41 @@ export interface Profile {
   provider?: string   // vercel-ai-sdk only
   baseUrl?: string
   apiKey?: string
+  /** Pointer into the credentials map. Set eagerly by writeProfile. */
+  credentialSlug?: string
+}
+
+// ==================== AI Provider Credentials ====================
+
+export type CredentialVendor =
+  | 'anthropic' | 'openai' | 'google'
+  | 'minimax' | 'glm' | 'kimi' | 'deepseek'
+  | 'custom'
+
+export type CredentialAuthType = 'api-key' | 'subscription'
+
+export interface Credential {
+  vendor: CredentialVendor
+  authType: CredentialAuthType
+  apiKey?: string
+  baseUrl?: string
+}
+
+// ==================== SDK Adapters ====================
+
+export type SdkAdapterId =
+  | 'agent-sdk' | 'codex'
+  | 'vercel-anthropic' | 'vercel-openai' | 'vercel-google'
+
+export interface SdkAdapterInfo {
+  id: SdkAdapterId
+  label: string
+  description: string
+  presets: Array<{
+    presetId: string
+    presetLabel: string
+    isTestDefault: boolean
+  }>
 }
 
 // ==================== AI Provider Presets ====================

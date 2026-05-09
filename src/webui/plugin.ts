@@ -27,6 +27,7 @@ import { createPersonaRoutes } from './routes/persona.js'
 import { createNewsRoutes } from './routes/news.js'
 import { createMarketRoutes } from './routes/market.js'
 import { createNotificationsRoutes } from './routes/notifications.js'
+import { createVersionRoutes } from './routes/version.js'
 import { mountOpenTypeBB } from '../server/opentypebb.js'
 import { buildSDKCredentials } from '../domain/market-data/credential-map.js'
 
@@ -118,6 +119,7 @@ export class WebPlugin implements Plugin {
     app.route('/api/notifications', createNotificationsRoutes({
       notificationsStore: ctx.notificationsStore,
     }))
+    app.route('/api/version', createVersionRoutes())
 
     // ==================== Mount opentypebb (market data HTTP) ====================
     // opentypebb is Alice's first-class market-data package; its router is

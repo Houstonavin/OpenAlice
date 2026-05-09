@@ -6,6 +6,7 @@ import {
 } from '../../core/config.js'
 import type { EngineContext } from '../../core/types.js'
 import { BUILTIN_PRESETS } from '../../ai-providers/presets.js'
+import { getSdkAdapterInfo } from '../../ai-providers/sdk-adapters.js'
 
 interface ConfigRouteOpts {
   ctx?: EngineContext
@@ -27,15 +28,22 @@ export function createConfigRoutes(opts?: ConfigRouteOpts) {
 
   // ==================== Profile CRUD ====================
 
-  /** GET /profiles — list all profiles */
+  /** GET /profiles — list profiles + credentials map + active profile slug */
   app.get('/profiles', async (c) => {
     try {
       const config = await readAIProviderConfig()
-      return c.json({ profiles: config.profiles, activeProfile: config.activeProfile })
+      return c.json({
+        profiles: config.profiles,
+        credentials: config.credentials,
+        activeProfile: config.activeProfile,
+      })
     } catch (err) {
       return c.json({ error: String(err) }, 500)
     }
   })
+
+  /** GET /sdk-adapters — list SDK adapters with their preset associations */
+  app.get('/sdk-adapters', (c) => c.json({ adapters: getSdkAdapterInfo() }))
 
   /** POST /profiles — create a new profile */
   app.post('/profiles', async (c) => {

@@ -31,6 +31,8 @@ import {
   resolveCredential,
   deleteCredential,
   credentialSchema,
+  extractCredentialFromProfile,
+  type Profile,
 } from './config.js'
 
 const mockReadFile = vi.mocked(readFile)
@@ -452,5 +454,63 @@ describe('deleteCredential', () => {
     })
     await expect(deleteCredential('orphan-1')).resolves.toBeUndefined()
     expect(mockWriteFile).toHaveBeenCalled()
+  })
+})
+
+// ==================== extractCredentialFromProfile ====================
+
+describe('extractCredentialFromProfile', () => {
+  it('passes through profile when credentialSlug already set', () => {
+    const profile = { backend: 'agent-sdk', model: 'm', loginMethod: 'api-key', apiKey: 'k', credentialSlug: 'existing' } as Profile
+    const out = extractCredentialFromProfile(profile, {})
+    expect(out.profile).toBe(profile)
+    expect(out.credentials).toEqual({})
+  })
+
+  it('passes through profile when nothing extractable (no apiKey, not subscription)', () => {
+    const profile = { backend: 'agent-sdk', model: 'm', loginMethod: 'api-key' } as Profile
+    const out = extractCredentialFromProfile(profile, {})
+    expect(out.profile.credentialSlug).toBeUndefined()
+    expect(out.credentials).toEqual({})
+  })
+
+  it('creates a new credential and links via slug when no match exists', () => {
+    const profile = {
+      backend: 'agent-sdk', model: 'm', loginMethod: 'api-key',
+      apiKey: 'sk-deep', baseUrl: 'https://api.deepseek.com/anthropic',
+    } as Profile
+    const out = extractCredentialFromProfile(profile, {})
+    expect(out.profile.credentialSlug).toBe('deepseek-1')
+    expect(out.credentials['deepseek-1']).toEqual({
+      vendor: 'deepseek',
+      authType: 'api-key',
+      apiKey: 'sk-deep',
+      baseUrl: 'https://api.deepseek.com/anthropic',
+    })
+  })
+
+  it('reuses existing credential slug when fields match (dedup)', () => {
+    const existing = {
+      'deepseek-1': { vendor: 'deepseek' as const, authType: 'api-key' as const, apiKey: 'sk-d', baseUrl: 'https://api.deepseek.com/anthropic' },
+    }
+    const profile = {
+      backend: 'agent-sdk', model: 'm', loginMethod: 'api-key',
+      apiKey: 'sk-d', baseUrl: 'https://api.deepseek.com/anthropic',
+    } as Profile
+    const out = extractCredentialFromProfile(profile, existing)
+    expect(out.profile.credentialSlug).toBe('deepseek-1')
+    expect(out.credentials).toBe(existing) // reference equality — no new entry
+  })
+
+  it('generates next available slug when vendor matches but fields differ', () => {
+    const existing = {
+      'anthropic-1': { vendor: 'anthropic' as const, authType: 'api-key' as const, apiKey: 'sk-1' },
+    }
+    const profile = {
+      backend: 'agent-sdk', model: 'm', loginMethod: 'api-key', apiKey: 'sk-2',
+    } as Profile
+    const out = extractCredentialFromProfile(profile, existing)
+    expect(out.profile.credentialSlug).toBe('anthropic-2')
+    expect(out.credentials['anthropic-2'].apiKey).toBe('sk-2')
   })
 })

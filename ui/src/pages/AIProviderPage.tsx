@@ -1,11 +1,14 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { api, type Profile, type AIBackend, type Preset } from '../api'
+import type { Credential, SdkAdapterInfo, SdkAdapterId } from '../api/types'
 import { SaveIndicator } from '../components/SaveIndicator'
 import { Field, inputClass } from '../components/form'
 import { useSchemaForm, type SchemaField } from '../hooks/useSchemaForm'
 import type { SaveStatus } from '../hooks/useAutoSave'
 import { PageHeader } from '../components/PageHeader'
 import { PageLoading } from '../components/StateViews'
+import { CredentialCard, type TestState as CredTestState } from '../components/credentials/CredentialCard'
+import { SdkAdapterCard } from '../components/credentials/SdkAdapterCard'
 
 // ==================== Icons ====================
 
@@ -33,20 +36,109 @@ function getModelOptions(profile: Profile, presets: Preset[]): Array<{ id: strin
 
 type TestState = { status: 'idle' | 'testing' | 'ok' | 'fail'; error?: string }
 
+type Selection = { kind: 'credential'; slug: string } | { kind: 'sdk'; id: SdkAdapterId } | null
+
 export function AIProviderPage() {
   const [profiles, setProfiles] = useState<Record<string, Profile> | null>(null)
+  const [credentials, setCredentials] = useState<Record<string, Credential>>({})
   const [activeProfile, setActiveProfile] = useState('')
   const [presets, setPresets] = useState<Preset[]>([])
+  const [adapters, setAdapters] = useState<SdkAdapterInfo[]>([])
   const [editingSlug, setEditingSlug] = useState<string | null>(null)
   const [showCreate, setShowCreate] = useState(false)
   const [testStates, setTestStates] = useState<Record<string, TestState>>({})
+  const [selection, setSelection] = useState<Selection>(null)
 
   useEffect(() => {
-    api.config.getProfiles().then(({ profiles: p, activeProfile: a }) => {
-      setProfiles(p); setActiveProfile(a)
+    api.config.getProfiles().then(({ profiles: p, credentials: c, activeProfile: a }) => {
+      setProfiles(p); setCredentials(c); setActiveProfile(a)
     }).catch(() => {})
     api.config.getPresets().then(({ presets: p }) => setPresets(p)).catch(() => {})
+    api.config.getSdkAdapters().then(({ adapters: a }) => setAdapters(a)).catch(() => {})
   }, [])
+
+  // ============== Derived data ==============
+
+  /** presetId → adapter ids it can drive (test default first). */
+  const presetToAdapters = useMemo(() => {
+    const map: Record<string, Array<{ id: SdkAdapterId; isTestDefault: boolean }>> = {}
+    for (const a of adapters) {
+      for (const p of a.presets) {
+        if (!map[p.presetId]) map[p.presetId] = []
+        map[p.presetId].push({ id: a.id, isTestDefault: p.isTestDefault })
+      }
+    }
+    // Sort: test default first
+    for (const list of Object.values(map)) {
+      list.sort((x, y) => Number(y.isTestDefault) - Number(x.isTestDefault))
+    }
+    return map
+  }, [adapters])
+
+  /** Group profiles by their credentialSlug. Profiles without slug land under '__inline'. */
+  const profilesByCredential = useMemo(() => {
+    const map: Record<string, Array<[string, Profile]>> = {}
+    if (!profiles) return map
+    for (const [slug, profile] of Object.entries(profiles)) {
+      const key = profile.credentialSlug ?? '__inline'
+      if (!map[key]) map[key] = []
+      map[key].push([slug, profile])
+    }
+    return map
+  }, [profiles])
+
+  /** Adapter ids reachable from a credential — derived via the credential's profiles' presets. */
+  const credentialToAdapters = useMemo(() => {
+    const map: Record<string, Array<{ id: SdkAdapterId; isTestDefault: boolean }>> = {}
+    for (const credSlug of Object.keys(credentials)) {
+      const profilesUsing = profilesByCredential[credSlug] ?? []
+      const seen = new Map<SdkAdapterId, boolean>()
+      for (const [, profile] of profilesUsing) {
+        if (!profile.preset) continue
+        for (const a of presetToAdapters[profile.preset] ?? []) {
+          // Take test-default if any path marks it
+          if (!seen.has(a.id) || a.isTestDefault) seen.set(a.id, a.isTestDefault)
+        }
+      }
+      map[credSlug] = [...seen.entries()]
+        .map(([id, isTestDefault]) => ({ id, isTestDefault }))
+        .sort((x, y) => Number(y.isTestDefault) - Number(x.isTestDefault))
+    }
+    return map
+  }, [credentials, profilesByCredential, presetToAdapters])
+
+  /** Map presetId → credential slug (any one) where the user has a credential matching that preset. */
+  const configuredPresetMap = useMemo(() => {
+    const map: Record<string, string> = {}
+    if (!profiles) return map
+    for (const [slug, profile] of Object.entries(profiles)) {
+      if (profile.preset && profile.credentialSlug) map[profile.preset] = profile.credentialSlug
+    }
+    return map
+  }, [profiles])
+
+  // ============== Selection & dim logic ==============
+
+  const isCredentialDimmed = (credSlug: string): boolean => {
+    if (!selection || selection.kind !== 'sdk') return false
+    const compatible = credentialToAdapters[credSlug] ?? []
+    return !compatible.some(a => a.id === selection.id)
+  }
+
+  const isAdapterDimmed = (adapterId: SdkAdapterId): boolean => {
+    if (!selection || selection.kind !== 'credential') return false
+    const compatible = credentialToAdapters[selection.slug] ?? []
+    return !compatible.some(a => a.id === adapterId)
+  }
+
+  const toggleSelectCredential = (slug: string) => {
+    setSelection(s => (s && s.kind === 'credential' && s.slug === slug ? null : { kind: 'credential', slug }))
+  }
+  const toggleSelectAdapter = (id: SdkAdapterId) => {
+    setSelection(s => (s && s.kind === 'sdk' && s.id === id ? null : { kind: 'sdk', id }))
+  }
+
+  // ============== Profile actions ==============
 
   const handleSetActive = async (slug: string) => {
     try { await api.config.setActiveProfile(slug); setActiveProfile(slug) } catch {}
@@ -56,20 +148,23 @@ export function AIProviderPage() {
     if (!profiles) return
     try {
       await api.config.deleteProfile(slug)
-      const updated = { ...profiles }; delete updated[slug]
-      setProfiles(updated); setEditingSlug(null)
+      const { profiles: p, credentials: c, activeProfile: a } = await api.config.getProfiles()
+      setProfiles(p); setCredentials(c); setActiveProfile(a)
+      setEditingSlug(null)
     } catch {}
   }
 
   const handleCreateSave = async (name: string, profile: Profile) => {
     await api.config.createProfile(name, profile)
-    setProfiles((p) => p ? { ...p, [name]: profile } : p)
-    // Don't close modal here — let the modal handle test + close
+    // Re-fetch so credentialSlug + credentials map reflect server-side eager extraction
+    const { profiles: p, credentials: c, activeProfile: a } = await api.config.getProfiles()
+    setProfiles(p); setCredentials(c); setActiveProfile(a)
   }
 
   const handleProfileUpdate = async (slug: string, profile: Profile) => {
     await api.config.updateProfile(slug, profile)
-    setProfiles((p) => p ? { ...p, [slug]: profile } : p)
+    const { profiles: p, credentials: c } = await api.config.getProfiles()
+    setProfiles(p); setCredentials(c)
   }
 
   const handleTest = async (slug: string, profile: Profile) => {
@@ -89,7 +184,10 @@ export function AIProviderPage() {
     }
   }
 
-  const handleInlineModelChange = async (slug: string, profile: Profile, newModel: string) => {
+  const handleInlineModelChange = async (slug: string, newModel: string) => {
+    if (!profiles) return
+    const profile = profiles[slug]
+    if (!profile) return
     const updated = { ...profile, model: newModel }
     setProfiles((p) => p ? { ...p, [slug]: updated } : p)
     try {
@@ -99,68 +197,105 @@ export function AIProviderPage() {
     }
   }
 
-  if (!profiles) return <div className="flex flex-col flex-1 min-h-0"><PageHeader title="AI Provider" description="Manage AI provider profiles." /><PageLoading /></div>
+  if (!profiles) return <div className="flex flex-col flex-1 min-h-0"><PageHeader title="AI Provider" description="Manage AI provider credentials and view available SDKs." /><PageLoading /></div>
+
+  // Profiles that have NO credentialSlug (transitional / inline-only) — render as a fallback group
+  const inlineProfiles = profilesByCredential['__inline'] ?? []
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
-      <PageHeader title="AI Provider" description="Manage AI provider profiles." />
+      <PageHeader title="AI Provider" description="Manage AI provider credentials and view available SDKs." />
       <div className="flex-1 overflow-y-auto px-4 md:px-8 py-6">
-        <div className="max-w-[640px] mx-auto space-y-3">
-          {Object.entries(profiles).map(([slug, profile]) => {
-            const isActive = slug === activeProfile
-            const modelOptions = getModelOptions(profile, presets)
-            const canSwitchModel = modelOptions.length > 1 && modelOptions.some(o => o.id === profile.model)
-            return (
-              <div key={slug} className={`flex items-center gap-3 p-4 rounded-xl border transition-all ${isActive ? 'border-accent bg-accent-dim/20' : 'border-border bg-bg'}`}>
-                <div className="text-text-muted">{BACKEND_ICONS[profile.backend]}</div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[13px] font-semibold text-text truncate">{slug}</span>
-                    {isActive && <span className="text-[10px] px-1.5 py-0.5 rounded bg-accent/20 text-accent font-medium shrink-0">Active</span>}
+        <div
+          className="max-w-[1200px] mx-auto grid gap-6"
+          style={{ gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)' }}
+          onClick={() => setSelection(null)}
+        >
+          {/* ============== Credentials column ============== */}
+          <section onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-[13px] font-semibold text-text uppercase tracking-wide">Credentials</h2>
+              <button
+                onClick={() => setShowCreate(true)}
+                className="text-[11px] px-2 py-1 rounded-md border border-border text-text-muted hover:text-accent hover:border-accent transition-colors"
+              >
+                + Add
+              </button>
+            </div>
+            <div className="space-y-3">
+              {Object.entries(credentials).map(([credSlug, cred]) => {
+                const profilesUsing = profilesByCredential[credSlug] ?? []
+                const sel = selection?.kind === 'credential' && selection.slug === credSlug
+                return (
+                  <CredentialCard
+                    key={credSlug}
+                    slug={credSlug}
+                    credential={cred}
+                    profiles={profilesUsing.map(([pSlug, profile]) => ({
+                      slug: pSlug,
+                      profile,
+                      isActive: pSlug === activeProfile,
+                      testState: testStates[pSlug] ?? { status: 'idle' as const } as CredTestState,
+                    }))}
+                    presets={presets}
+                    availableAdapters={credentialToAdapters[credSlug] ?? []}
+                    selected={sel}
+                    dimmed={isCredentialDimmed(credSlug)}
+                    onSelect={() => toggleSelectCredential(credSlug)}
+                    onSetActive={handleSetActive}
+                    onTest={handleTest}
+                    onEditProfile={(pSlug) => setEditingSlug(pSlug)}
+                    onModelChange={async (pSlug, model) => handleInlineModelChange(pSlug, model)}
+                  />
+                )
+              })}
+
+              {inlineProfiles.length > 0 && (
+                <div className="mt-2 p-3 rounded-lg border border-dashed border-border bg-bg-tertiary/30">
+                  <div className="text-[10px] uppercase tracking-wide text-text-muted mb-1">Inline-only profiles (no credential record)</div>
+                  <div className="text-[11px] text-text-muted">
+                    {inlineProfiles.map(([slug]) => slug).join(', ')}
                   </div>
-                  {canSwitchModel ? (
-                    <div className="relative inline-flex items-center group -ml-1">
-                      <select
-                        value={profile.model}
-                        onChange={(e) => handleInlineModelChange(slug, profile, e.target.value)}
-                        className="appearance-none text-[11px] text-text-muted bg-transparent border-0 cursor-pointer hover:text-accent focus:text-accent focus:outline-none pl-1 pr-4 py-0.5 rounded hover:bg-bg-tertiary transition-colors"
-                        title="Change model"
-                      >
-                        {modelOptions.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
-                      </select>
-                      <svg className="pointer-events-none absolute right-1 w-3 h-3 text-text-muted group-hover:text-accent transition-colors" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
-                    </div>
-                  ) : (
-                    <p className="text-[11px] text-text-muted truncate">{profile.model || 'Auto (subscription plan)'}</p>
-                  )}
+                  <div className="text-[10px] text-text-muted/70 mt-1">
+                    These profiles still work via inline fallback. They&apos;ll be linked to credential records the next time they&apos;re saved or after the 0003 migration runs.
+                  </div>
                 </div>
-                <div className="flex items-center gap-1.5 shrink-0">
-                  {(() => {
-                    const ts = testStates[slug] ?? { status: 'idle' as const }
-                    const label = ts.status === 'testing' ? 'Testing…' : ts.status === 'ok' ? 'OK' : ts.status === 'fail' ? 'Failed' : 'Test'
-                    const color = ts.status === 'ok'
-                      ? 'text-green border-green/40'
-                      : ts.status === 'fail'
-                        ? 'text-red border-red/40'
-                        : 'text-text-muted border-border hover:text-text hover:bg-bg-tertiary'
-                    return (
-                      <button
-                        onClick={() => handleTest(slug, profile)}
-                        disabled={ts.status === 'testing'}
-                        title={ts.status === 'fail' ? ts.error : 'Send "Hi" to verify connectivity'}
-                        className={`text-[11px] px-2 py-1 rounded-md border transition-colors ${color}`}
-                      >
-                        {label}
-                      </button>
-                    )
-                  })()}
-                  {!isActive && <button onClick={() => handleSetActive(slug)} className="text-[11px] px-2 py-1 rounded-md border border-border text-text-muted hover:text-accent hover:border-accent transition-colors">Set Default</button>}
-                  <button onClick={() => setEditingSlug(slug)} className="text-[11px] px-2 py-1 rounded-md border border-border text-text-muted hover:text-text hover:bg-bg-tertiary transition-colors">Edit</button>
-                </div>
-              </div>
-            )
-          })}
-          <button onClick={() => setShowCreate(true)} className="w-full p-4 rounded-xl border-2 border-dashed border-border text-text-muted hover:border-accent/50 hover:text-accent transition-all text-[13px] font-medium">+ New Profile</button>
+              )}
+
+              {Object.keys(credentials).length === 0 && inlineProfiles.length === 0 && (
+                <button
+                  onClick={() => setShowCreate(true)}
+                  className="w-full p-4 rounded-xl border-2 border-dashed border-border text-text-muted hover:border-accent/50 hover:text-accent transition-all text-[13px] font-medium"
+                >
+                  + Add your first credential
+                </button>
+              )}
+            </div>
+          </section>
+
+          {/* ============== SDKs column ============== */}
+          <section onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-[13px] font-semibold text-text uppercase tracking-wide">Available SDKs</h2>
+              <span className="text-[10px] text-text-muted">read-only</span>
+            </div>
+            <div className="space-y-3">
+              {adapters.map((adapter) => {
+                const sel = selection?.kind === 'sdk' && selection.id === adapter.id
+                return (
+                  <SdkAdapterCard
+                    key={adapter.id}
+                    adapter={adapter}
+                    configuredPresetMap={configuredPresetMap}
+                    selected={sel}
+                    dimmed={isAdapterDimmed(adapter.id)}
+                    onSelect={() => toggleSelectAdapter(adapter.id)}
+                    onConfigurePreset={() => setShowCreate(true)}
+                  />
+                )
+              })}
+            </div>
+          </section>
         </div>
       </div>
 

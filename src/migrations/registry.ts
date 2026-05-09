@@ -14,8 +14,10 @@
 import type { Migration } from './types.js'
 import { migration as migration_0001_initial_unified } from './0001_initial_unified/index.js'
 import { migration as migration_0002_extract_credentials } from './0002_extract_credentials/index.js'
+import { migration as migration_0003_backfill_credentials } from './0003_backfill_credentials/index.js'
 
 export const REGISTRY: Migration[] = [
   migration_0001_initial_unified,
   migration_0002_extract_credentials,
+  migration_0003_backfill_credentials,
 ]

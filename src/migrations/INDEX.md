@@ -9,3 +9,4 @@ Each row corresponds to one migration in `src/migrations/`. The runner applies p
 |----|-------------|------|---------|---------|
 | `0001_initial_unified` | 0.10.0-beta.1 | 2026-05-09 | * | Roll-up of pre-framework ad-hoc migrations: model.json/api-keys.json merge, claude-code alias, flat → profile-based, subchannel overrides → named profiles, apiKeys distribution, telegram + engine port consolidation |
 | `0002_extract_credentials` | 0.10.0-beta.1 | 2026-05-09 | ai-provider-manager.json | Extract apiKey/baseUrl from profiles into top-level credentials map; profiles gain credentialSlug pointer (inline fields kept as fallback) |
+| `0003_backfill_credentials` | 0.10.0-beta.1 | 2026-05-09 | ai-provider-manager.json | Backfill credentials for profiles added between 0002 and writeProfile going eager (catches DeepSeek and similar stragglers) |

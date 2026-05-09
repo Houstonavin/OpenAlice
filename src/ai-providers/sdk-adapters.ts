@@ -23,6 +23,7 @@
 
 import type { Credential, ResolvedProfile } from '../core/config.js'
 import type { AIProvider, ProviderResult } from './types.js'
+import { PRESET_CATALOG } from './preset-catalog.js'
 
 // ==================== Adapter ids and typed configs ====================
 
@@ -32,6 +33,59 @@ export type SdkAdapterId =
   | 'vercel-anthropic'
   | 'vercel-openai'
   | 'vercel-google'
+
+/** Display labels + one-line descriptions, surfaced in the AI Provider page. */
+export const SDK_ADAPTER_LABELS: Record<SdkAdapterId, { label: string; description: string }> = {
+  'agent-sdk': {
+    label: 'Claude Agent SDK',
+    description: 'Heavy subprocess; required for Claude Pro/Max subscription auth.',
+  },
+  'codex': {
+    label: 'Codex (OpenAI Responses)',
+    description: 'OpenAI Responses API via official SDK; required for ChatGPT subscription.',
+  },
+  'vercel-anthropic': {
+    label: 'Vercel Anthropic',
+    description: 'Lightweight HTTP via @ai-sdk/anthropic — direct Messages API call.',
+  },
+  'vercel-openai': {
+    label: 'Vercel OpenAI',
+    description: 'Lightweight HTTP via @ai-sdk/openai — direct Chat Completions call.',
+  },
+  'vercel-google': {
+    label: 'Vercel Google',
+    description: 'Lightweight HTTP via @ai-sdk/google — Gemini API.',
+  },
+}
+
+/** Endpoint payload shape for GET /api/config/sdk-adapters. */
+export interface SdkAdapterInfo {
+  id: SdkAdapterId
+  label: string
+  description: string
+  /** Presets that register this adapter as available, in catalog order. */
+  presets: Array<{ presetId: string; presetLabel: string; isTestDefault: boolean }>
+}
+
+/** Compute the SDK adapter info list — used by both the route handler and tests. */
+export function getSdkAdapterInfo(): SdkAdapterInfo[] {
+  const ids: SdkAdapterId[] = ['agent-sdk', 'codex', 'vercel-anthropic', 'vercel-openai', 'vercel-google']
+  return ids.map((id) => ({
+    id,
+    label: SDK_ADAPTER_LABELS[id].label,
+    description: SDK_ADAPTER_LABELS[id].description,
+    presets: PRESET_CATALOG.flatMap((preset) => {
+      if (!preset.sdkAdapters) return []
+      const isAvailable = preset.sdkAdapters.available.some((a) => a.id === id)
+      if (!isAvailable) return []
+      return [{
+        presetId: preset.id,
+        presetLabel: preset.label,
+        isTestDefault: preset.sdkAdapters.test === id,
+      }]
+    }),
+  }))
+}
 
 /**
  * SDK config shape per adapter — field names match each SDK's own

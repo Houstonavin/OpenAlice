@@ -3,6 +3,11 @@ import { readFile, writeFile, mkdir, unlink, rm } from 'fs/promises'
 import { resolve } from 'path'
 import { newsCollectorSchema } from '../domain/news/config.js'
 import { runMigrations } from '../migrations/runner.js'
+import {
+  inferVendor as inferVendorFromProfile,
+  inferAuthType as inferAuthTypeFromProfile,
+  hasExtractableCredential,
+} from './credential-inference.js'
 
 const CONFIG_DIR = resolve('data/config')
 
@@ -776,19 +781,94 @@ export async function setActiveProfile(slug: string): Promise<void> {
   await writeFile(resolve(CONFIG_DIR, 'ai-provider-manager.json'), JSON.stringify(updated, null, 2) + '\n')
 }
 
-/** Write a single profile (create or update). */
+/**
+ * Eagerly extract a credential from a profile's inline fields and link
+ * the profile to it. Dedupes against existing credentials (same vendor +
+ * authType + apiKey + baseUrl reuses the existing slug). Returns the
+ * possibly-updated profile and credentials map.
+ *
+ * Used by writeProfile (and the 0003 backfill migration) so new profiles
+ * never land with inline-only credentials. Idempotent — profiles already
+ * carrying credentialSlug are passed through unchanged.
+ */
+export function extractCredentialFromProfile(
+  profile: Profile,
+  existing: Record<string, Credential>,
+): { profile: Profile; credentials: Record<string, Credential> } {
+  if (profile.credentialSlug) return { profile, credentials: existing }
+  if (!hasExtractableCredential(profile)) return { profile, credentials: existing }
+
+  const vendor = inferVendorFromProfile(profile)
+  const authType = inferAuthTypeFromProfile(profile)
+  const cred: Credential = { vendor, authType }
+  if (profile.apiKey) cred.apiKey = profile.apiKey
+  if (profile.baseUrl) cred.baseUrl = profile.baseUrl
+
+  // Dedupe against existing — same vendor/auth/apiKey/baseUrl reuses the slug
+  const match = Object.entries(existing).find(([, c]) =>
+    c.vendor === cred.vendor &&
+    c.authType === cred.authType &&
+    c.apiKey === cred.apiKey &&
+    c.baseUrl === cred.baseUrl
+  )
+  if (match) {
+    return {
+      profile: { ...profile, credentialSlug: match[0] } as Profile,
+      credentials: existing,
+    }
+  }
+
+  // Generate a fresh slug
+  const taken = new Set(Object.keys(existing))
+  let n = 1
+  while (taken.has(`${vendor}-${n}`)) n++
+  const slug = `${vendor}-${n}`
+
+  return {
+    profile: { ...profile, credentialSlug: slug } as Profile,
+    credentials: { ...existing, [slug]: cred },
+  }
+}
+
+/**
+ * Write a single profile (create or update). Eagerly extracts inline
+ * credential fields into the credentials map and links via
+ * credentialSlug — keeps the credentials map complete as new profiles
+ * land via the wizard.
+ */
 export async function writeProfile(slug: string, profile: Profile): Promise<void> {
   const config = await readAIProviderConfig()
-  config.profiles[slug] = profile
+  const { profile: extractedProfile, credentials } = extractCredentialFromProfile(
+    profile,
+    config.credentials,
+  )
+  config.profiles[slug] = extractedProfile
+  config.credentials = credentials
   await mkdir(CONFIG_DIR, { recursive: true })
   await writeFile(resolve(CONFIG_DIR, 'ai-provider-manager.json'), JSON.stringify(config, null, 2) + '\n')
 }
 
-/** Delete a profile. Cannot delete the active profile. */
+/**
+ * Delete a profile. Cannot delete the active profile. If the deleted
+ * profile was the last one referencing its credential, the credential
+ * is garbage-collected too — keeps credentials map free of orphans.
+ */
 export async function deleteProfile(slug: string): Promise<void> {
   const config = await readAIProviderConfig()
   if (config.activeProfile === slug) throw new Error('Cannot delete the active profile')
+  const removedCredSlug = config.profiles[slug]?.credentialSlug
   delete config.profiles[slug]
+
+  // GC: if the removed profile's credential is no longer referenced, drop it
+  if (removedCredSlug) {
+    const stillReferenced = Object.values(config.profiles).some(
+      (p) => p.credentialSlug === removedCredSlug,
+    )
+    if (!stillReferenced) {
+      delete config.credentials[removedCredSlug]
+    }
+  }
+
   await mkdir(CONFIG_DIR, { recursive: true })
   await writeFile(resolve(CONFIG_DIR, 'ai-provider-manager.json'), JSON.stringify(config, null, 2) + '\n')
 }

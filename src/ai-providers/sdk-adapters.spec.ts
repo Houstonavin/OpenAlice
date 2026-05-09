@@ -3,6 +3,8 @@ import {
   resolveTestAdapter,
   invokeAdapter,
   SDK_INVOKERS,
+  SDK_ADAPTER_LABELS,
+  getSdkAdapterInfo,
   type SdkAdapterDeclaration,
 } from './sdk-adapters.js'
 import { PRESET_CATALOG } from './preset-catalog.js'
@@ -274,5 +276,46 @@ describe('SDK_INVOKERS registry', () => {
     expect(Object.keys(SDK_INVOKERS).sort()).toEqual([
       'agent-sdk', 'codex', 'vercel-anthropic', 'vercel-google', 'vercel-openai',
     ])
+  })
+})
+
+// ==================== getSdkAdapterInfo ====================
+
+describe('getSdkAdapterInfo', () => {
+  const info = getSdkAdapterInfo()
+
+  it('returns one entry per adapter id', () => {
+    expect(info.length).toBe(5)
+    expect(info.map(a => a.id).sort()).toEqual([
+      'agent-sdk', 'codex', 'vercel-anthropic', 'vercel-google', 'vercel-openai',
+    ])
+  })
+
+  it('label and description match SDK_ADAPTER_LABELS', () => {
+    for (const a of info) {
+      expect(a.label).toBe(SDK_ADAPTER_LABELS[a.id].label)
+      expect(a.description).toBe(SDK_ADAPTER_LABELS[a.id].description)
+    }
+  })
+
+  it('agent-sdk lists every preset that registers it as available', () => {
+    const agentSdk = info.find(a => a.id === 'agent-sdk')!
+    const expectedPresetIds = PRESET_CATALOG
+      .filter(p => p.sdkAdapters?.available.some(decl => decl.id === 'agent-sdk'))
+      .map(p => p.id)
+    expect(agentSdk.presets.map(p => p.presetId).sort()).toEqual(expectedPresetIds.sort())
+  })
+
+  it('marks isTestDefault correctly per preset', () => {
+    const vercelAnthropic = info.find(a => a.id === 'vercel-anthropic')!
+    // Find preset where vercel-anthropic is the test default
+    const deepseek = vercelAnthropic.presets.find(p => p.presetId === 'deepseek')
+    expect(deepseek?.isTestDefault).toBe(true)
+  })
+
+  it('Custom preset (no sdkAdapters) is excluded from all adapter lists', () => {
+    for (const a of info) {
+      expect(a.presets.find(p => p.presetId === 'custom')).toBeUndefined()
+    }
   })
 })

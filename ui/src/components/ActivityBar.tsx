@@ -1,4 +1,4 @@
-import { type LucideIcon, MessageSquare, LineChart, GitBranch, BarChart3, Newspaper, Notebook, Zap, Settings, Code2 } from 'lucide-react'
+import { type LucideIcon, MessageSquare, LineChart, GitBranch, BarChart3, Newspaper, Zap, Settings, Code2 } from 'lucide-react'
 import { type Page } from '../App'
 import { useWorkspace } from '../tabs/store'
 import type { ActivitySection, ViewSpec } from '../tabs/types'
@@ -17,7 +17,6 @@ function activitySectionFor(page: Page): ActivitySection {
     case 'portfolio':      return 'portfolio'
     case 'automation':     return 'automation'
     case 'news':           return 'news'
-    case 'diary':          return 'diary'
   }
 }
 
@@ -62,7 +61,6 @@ const NAV_SECTIONS: NavSection[] = [
       { page: 'trading-as-git', label: 'Trading as Git', icon: GitBranch },
       { page: 'market',         label: 'Market',         icon: BarChart3 },
       { page: 'news',           label: 'News',           icon: Newspaper, defaultTab: { kind: 'news', params: {} } },
-      { page: 'diary',          label: 'Diary',          icon: Notebook,  defaultTab: { kind: 'diary', params: {} } },
     ],
   },
   {

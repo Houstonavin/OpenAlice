@@ -13,9 +13,12 @@ import { useWorkspace } from './tabs/store'
 /**
  * Activity-bar pages — only items that appear as icons in the ActivityBar.
  * Each maps to one or more tab kinds via tabs/registry.ts (defaultSpecForActivity).
+ *
+ * Diary is intentionally absent — it lives under the Chat sidebar as a
+ * peer of Notifications (both are "Alice surfaces, not user actions").
  */
 export type Page =
-  | 'chat' | 'diary' | 'portfolio' | 'news' | 'automation' | 'market'
+  | 'chat' | 'portfolio' | 'news' | 'automation' | 'market'
   | 'trading-as-git'
   | 'settings' | 'dev'
 

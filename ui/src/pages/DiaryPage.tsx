@@ -107,7 +107,11 @@ interface CycleGroup {
 
 /**
  * Walk cycles ascending and attach each session item to the cycle whose timestamp
- * window it falls into: (prev.ts, cycle.ts + slack].
+ * window it falls into: (prev.ts, cycle.ts + slack]. The result is reversed
+ * before returning so the rendered feed reads newest-first — Diary is an
+ * observation surface (feed-shaped), not a chat (bottom-anchored conversation).
+ * Items inside a single cycle stay ascending: within one heartbeat tick the
+ * thought-then-tool-call order is the natural read.
  */
 function groupItemsByCycle(items: ChatHistoryItem[], cycles: DiaryCycle[]): CycleGroup[] {
   const sorted = [...cycles].sort((a, b) => a.ts - b.ts)
@@ -129,7 +133,7 @@ function groupItemsByCycle(items: ChatHistoryItem[], cycles: DiaryCycle[]): Cycl
     groups[cursor].items.push(item)
   }
 
-  return groups
+  return groups.reverse()
 }
 
 // ==================== Page ====================
@@ -144,9 +148,11 @@ export function DiaryPage() {
   const latestSeqRef = useRef(0)
   latestSeqRef.current = latestSeq
 
-  const messagesEndRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
-  const userScrolledUp = useRef(false)
+  /** True once the user has scrolled away from the top — drives the
+   *  "back to top" floating button. Top of list is newest, so the
+   *  button is conceptually a "jump to newest", same UX as Twitter's
+   *  "new tweets ↑". */
   const [showScrollBtn, setShowScrollBtn] = useState(false)
 
   const fetchFull = useCallback(async () => {
@@ -206,23 +212,13 @@ export function DiaryPage() {
     return () => clearInterval(id)
   }, [fetchDelta])
 
-  // Auto-scroll to bottom on new content, unless user scrolled up
-  const scrollToBottom = useCallback((behavior: ScrollBehavior = 'auto') => {
-    if (!userScrolledUp.current) {
-      messagesEndRef.current?.scrollIntoView({ behavior })
-    }
-  }, [])
-  useEffect(() => { scrollToBottom() }, [items, cycles, scrollToBottom])
-
-  // Track scroll position
+  // Track scroll position so we can offer a "back to top (newest)"
+  // floating button once the user has scrolled into history.
   useEffect(() => {
     const el = containerRef.current
     if (!el) return
     const onScroll = () => {
-      const { scrollTop, scrollHeight, clientHeight } = el
-      const isUp = scrollHeight - scrollTop - clientHeight > 80
-      userScrolledUp.current = isUp
-      setShowScrollBtn(isUp)
+      setShowScrollBtn(el.scrollTop > 80)
     }
     el.addEventListener('scroll', onScroll)
     return () => el.removeEventListener('scroll', onScroll)
@@ -235,10 +231,9 @@ export function DiaryPage() {
     fetchFull()
   }, [fetchFull])
 
-  const handleScrollToBottom = useCallback(() => {
-    userScrolledUp.current = false
+  const handleScrollToTop = useCallback(() => {
     setShowScrollBtn(false)
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    containerRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
   }, [])
 
   // Render: walk groups and emit a date divider whenever the calendar day changes.
@@ -320,19 +315,18 @@ export function DiaryPage() {
                 <div key={node.key}>{node.render()}</div>
               ))}
             </div>
-
-            <div ref={messagesEndRef} />
           </div>
 
           {showScrollBtn && (
             <button
-              onClick={handleScrollToBottom}
-              className="absolute bottom-6 left-1/2 -translate-x-1/2 w-10 h-10 rounded-full bg-bg-secondary border border-border text-text-muted hover:text-text hover:border-accent/50 flex items-center justify-center transition-all shadow-lg"
-              aria-label="Scroll to bottom"
+              onClick={handleScrollToTop}
+              className="absolute top-3 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-full bg-bg-secondary border border-border text-[12px] text-text-muted hover:text-text hover:border-accent/50 flex items-center gap-1.5 transition-all shadow-lg"
+              aria-label="Jump to newest"
             >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 5v14M5 12l7 7 7-7" />
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 19V5M5 12l7-7 7 7" />
               </svg>
+              <span>Newest</span>
             </button>
           )}
         </div>

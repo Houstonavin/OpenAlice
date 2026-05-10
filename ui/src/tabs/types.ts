@@ -37,6 +37,11 @@ export type ViewKind = ViewSpec['kind']
  * Note: trading-as-git has no associated tab kind — it's sidebar-only
  * (the approval queue lives in the sidebar; future commit-detail tabs will
  * be opened from there).
+ *
+ * Diary deliberately does NOT have its own activity section — it's a
+ * read-only Alice-output surface, conceptually grouped with Chat under
+ * "interactions with Alice" (chat sidebar carries an entry that opens
+ * the Diary tab).
  */
 export type ActivitySection =
   | 'chat'
@@ -47,7 +52,6 @@ export type ActivitySection =
   | 'portfolio'
   | 'automation'
   | 'news'
-  | 'diary'
 
 export interface Tab {
   id: string

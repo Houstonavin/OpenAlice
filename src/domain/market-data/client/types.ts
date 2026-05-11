@@ -27,8 +27,9 @@ import type {
   OptionsChainsData, OptionsSnapshotsData, OptionsUnusualData,
   // Commodity
   CommoditySpotPriceData, PetroleumStatusReportData, ShortTermEnergyOutlookData,
-  // Economy (FRED)
+  // Economy (FRED + BLS)
   FredSearchData, FredSeriesData, FredRegionalData,
+  BlsSearchData, BlsSeriesData,
 } from '@traderalice/opentypebb'
 
 export interface EquityClientLike {
@@ -94,6 +95,9 @@ export interface EconomyClientLike {
   fredSearch(params: Record<string, unknown>): Promise<FredSearchData[]>
   fredSeries(params: Record<string, unknown>): Promise<FredSeriesData[]>
   fredRegional(params: Record<string, unknown>): Promise<FredRegionalData[]>
+  // BLS — Bureau of Labor Statistics, mounted under /economy/survey/* upstream
+  getBlsSearch(params: Record<string, unknown>): Promise<BlsSearchData[]>
+  getBlsSeries(params: Record<string, unknown>): Promise<BlsSeriesData[]>
 }
 
 export interface DerivativesClientLike {

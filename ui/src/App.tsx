@@ -4,6 +4,7 @@ import { ActivityBar } from './components/ActivityBar'
 import { Sidebar } from './components/Sidebar'
 import { TabHost } from './components/TabHost'
 import { ChannelConfigModal } from './components/ChannelConfigModal'
+import { UpdateBanner } from './components/UpdateBanner'
 import { ChannelsProvider, useChannels } from './contexts/ChannelsContext'
 import { findSectionForActivity } from './sections'
 import { UrlAdopter } from './tabs/UrlAdopter'
@@ -12,9 +13,12 @@ import { useWorkspace } from './tabs/store'
 /**
  * Activity-bar pages — only items that appear as icons in the ActivityBar.
  * Each maps to one or more tab kinds via tabs/registry.ts (defaultSpecForActivity).
+ *
+ * Diary is intentionally absent — it lives under the Chat sidebar as a
+ * peer of Notifications (both are "Alice surfaces, not user actions").
  */
 export type Page =
-  | 'chat' | 'diary' | 'portfolio' | 'news' | 'automation' | 'market'
+  | 'chat' | 'portfolio' | 'news' | 'automation' | 'market'
   | 'trading-as-git'
   | 'settings' | 'dev'
 
@@ -85,36 +89,39 @@ function AppShell() {
   )
 
   return (
-    <div className="flex h-full">
-      <ActivityBar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+    <div className="flex flex-col h-full">
+      <UpdateBanner />
+      <div className="flex flex-1 min-h-0">
+        <ActivityBar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-      <Group
-        orientation="horizontal"
-        id="main-layout"
-        className="flex-1 min-h-0"
-        defaultLayout={savedLayout ?? fallbackLayout}
-        onLayoutChanged={onLayoutChanged}
-      >
-        {showSidebarPanel && section && (
-          <>
-            <Panel id="sidebar" defaultSize={240} minSize={150} maxSize={500}>
-              <Sidebar
-                title={section.title}
-                actions={section.Actions ? <section.Actions /> : undefined}
-              >
-                <section.Secondary />
-              </Sidebar>
-            </Panel>
-            <Separator className="w-px bg-border hover:bg-accent/40 active:bg-accent/60 transition-colors" />
-          </>
-        )}
-        <Panel id="main">
-          {mainContent}
-        </Panel>
-      </Group>
+        <Group
+          orientation="horizontal"
+          id="main-layout"
+          className="flex-1 min-h-0"
+          defaultLayout={savedLayout ?? fallbackLayout}
+          onLayoutChanged={onLayoutChanged}
+        >
+          {showSidebarPanel && section && (
+            <>
+              <Panel id="sidebar" defaultSize={240} minSize={150} maxSize={500}>
+                <Sidebar
+                  title={section.title}
+                  actions={section.Actions ? <section.Actions /> : undefined}
+                >
+                  <section.Secondary />
+                </Sidebar>
+              </Panel>
+              <Separator className="w-px bg-border hover:bg-accent/40 active:bg-accent/60 transition-colors" />
+            </>
+          )}
+          <Panel id="main">
+            {mainContent}
+          </Panel>
+        </Group>
 
-      <UrlAdopter />
-      <ChannelDialogMount />
+        <UrlAdopter />
+        <ChannelDialogMount />
+      </div>
     </div>
   )
 }

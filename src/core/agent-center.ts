@@ -15,6 +15,8 @@
 import type { AskOptions, ProviderResult, ProviderEvent, GenerateOpts } from './ai-provider-manager.js'
 import type { ResolvedProfile } from './config.js'
 import { GenerateRouter, StreamableResult } from './ai-provider-manager.js'
+import { resolveProfile, resolveCredential } from './config.js'
+import { profileToCredential } from './credential-inference.js'
 import type { ISessionStore, ContentBlock } from './session.js'
 import type { CompactionConfig } from './compaction.js'
 import { compactIfNeeded } from './compaction.js'
@@ -59,14 +61,28 @@ export class AgentCenter {
     return this.router.ask(prompt)
   }
 
-  /** Test a saved profile by sending a prompt to its provider. */
+  /**
+   * Test a saved profile by sending a prompt via the preset's declared
+   * test adapter (lightest available SDK that can drive the credential).
+   * Uses the stored credential when the profile carries `credentialSlug`,
+   * otherwise synthesizes one from the profile's inline fields.
+   */
   async testProfile(profileSlug: string, prompt = 'Hi'): Promise<ProviderResult> {
-    return this.router.askWithProfileSlug(prompt, profileSlug)
+    const profile = await resolveProfile(profileSlug)
+    const credential = profile.credentialSlug
+      ? await resolveCredential(profile.credentialSlug)
+      : profileToCredential(profile)
+    return this.router.askForTest(prompt, profile, credential)
   }
 
-  /** Test an unsaved profile (inline data). Used for pre-save connection testing. */
+  /**
+   * Test an unsaved profile (inline data from the wizard). Synthesizes
+   * a credential from the profile's inline fields and routes through
+   * the preset's declared test adapter.
+   */
   async testWithProfile(profile: ResolvedProfile, prompt = 'Hi'): Promise<ProviderResult> {
-    return this.router.askWithProfile(prompt, profile)
+    const credential = profileToCredential(profile)
+    return this.router.askForTest(prompt, profile, credential)
   }
 
   /** Prompt with session history — full orchestration pipeline. */

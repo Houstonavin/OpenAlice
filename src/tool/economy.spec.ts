@@ -18,6 +18,8 @@ function makeMockEconomyClient(): EconomyClientLike {
     fredSearch: vi.fn(async () => []),
     fredSeries: vi.fn(async () => []),
     fredRegional: vi.fn(async () => []),
+    getBlsSearch: vi.fn(async () => []),
+    getBlsSeries: vi.fn(async () => []),
   }
 }
 
@@ -160,6 +162,81 @@ describe('createEconomyTools — economyFredRegional', () => {
   })
 })
 
+describe('createEconomyTools — economyBlsSearch', () => {
+  let client: EconomyClientLike
+  let commodity: CommodityClientLike
+  let tools: ReturnType<typeof createEconomyTools>
+
+  beforeEach(() => {
+    client = makeMockEconomyClient()
+    commodity = makeMockCommodityClient()
+    tools = createEconomyTools(client, commodity)
+  })
+
+  it('passes query through and pins provider to bls', async () => {
+    await exec(tools.economyBlsSearch, { query: 'unemployment' })
+    expect(client.getBlsSearch).toHaveBeenCalledWith({ query: 'unemployment', provider: 'bls' })
+  })
+
+  it('forwards optional limit when provided', async () => {
+    await exec(tools.economyBlsSearch, { query: 'CPI', limit: 5 })
+    expect(client.getBlsSearch).toHaveBeenCalledWith({ query: 'CPI', provider: 'bls', limit: 5 })
+  })
+
+  it('schema rejects missing query', () => {
+    const schema = (tools.economyBlsSearch as any).inputSchema
+    expect(schema.safeParse({}).success).toBe(false)
+  })
+})
+
+describe('createEconomyTools — economyBlsSeries', () => {
+  let client: EconomyClientLike
+  let commodity: CommodityClientLike
+  let tools: ReturnType<typeof createEconomyTools>
+
+  beforeEach(() => {
+    client = makeMockEconomyClient()
+    commodity = makeMockCommodityClient()
+    tools = createEconomyTools(client, commodity)
+  })
+
+  it('passes single symbol + provider', async () => {
+    await exec(tools.economyBlsSeries, { symbol: 'LNS14000000' })
+    expect(client.getBlsSeries).toHaveBeenCalledWith({ symbol: 'LNS14000000', provider: 'bls' })
+  })
+
+  it('passes comma-separated symbols verbatim', async () => {
+    await exec(tools.economyBlsSeries, { symbol: 'LNS14000000,CUUR0000SA0' })
+    expect(client.getBlsSeries).toHaveBeenCalledWith({ symbol: 'LNS14000000,CUUR0000SA0', provider: 'bls' })
+  })
+
+  it('forwards date range when provided', async () => {
+    await exec(tools.economyBlsSeries, {
+      symbol: 'LNS14000000', start_date: '2020-01-01', end_date: '2024-12-31',
+    })
+    expect(client.getBlsSeries).toHaveBeenCalledWith({
+      symbol: 'LNS14000000', provider: 'bls',
+      start_date: '2020-01-01', end_date: '2024-12-31',
+    })
+  })
+
+  it('does NOT touch commodityClient', async () => {
+    await exec(tools.economyBlsSeries, { symbol: 'LNS14000000' })
+    expect(commodity.getEnergyOutlook).not.toHaveBeenCalled()
+    expect(commodity.getPetroleumStatus).not.toHaveBeenCalled()
+  })
+
+  it('schema rejects missing symbol', () => {
+    const schema = (tools.economyBlsSeries as any).inputSchema
+    expect(schema.safeParse({}).success).toBe(false)
+  })
+
+  it('propagates client errors', async () => {
+    ;(client.getBlsSeries as any).mockRejectedValueOnce(new Error('bls 503'))
+    await expect(exec(tools.economyBlsSeries, { symbol: 'LNS14000000' })).rejects.toThrow('bls 503')
+  })
+})
+
 describe('createEconomyTools — economyEnergyOutlook', () => {
   let economy: EconomyClientLike
   let commodity: CommodityClientLike
@@ -237,9 +314,11 @@ describe('createEconomyTools — economyPetroleumStatus', () => {
 })
 
 describe('createEconomyTools — toolset surface', () => {
-  it('exposes the FRED + EIA tools', () => {
+  it('exposes the FRED + BLS + EIA tools', () => {
     const tools = createEconomyTools(makeMockEconomyClient(), makeMockCommodityClient())
     expect(Object.keys(tools).sort()).toEqual([
+      'economyBlsSearch',
+      'economyBlsSeries',
       'economyEnergyOutlook',
       'economyFredRegional',
       'economyFredSearch',

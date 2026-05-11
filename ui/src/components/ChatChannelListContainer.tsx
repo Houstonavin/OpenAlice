@@ -1,3 +1,4 @@
+import { Bell, Notebook } from 'lucide-react'
 import { useChannels } from '../contexts/ChannelsContext'
 import { useWorkspace } from '../tabs/store'
 import { getFocusedTab } from '../tabs/types'
@@ -8,29 +9,38 @@ import { SidebarRow } from './SidebarRow'
 /**
  * Connects ChatChannelList to ChannelsContext + the workspace store.
  *
- * Layout: a Notifications inbox row (with an unread badge) sits at the
- * top of the chat sidebar — clicking it opens the notifications inbox
- * as a tab. The user lives in this sidebar most of the time, so the
- * red dot here is the primary "you have new system pushes" signal.
+ * Layout reflects the framing of "Chat" as the catch-all activity for
+ * interactions with Alice — not strictly chat:
  *
- * Below: the channel list. Active channel is derived from the focused
- * chat tab; when the focused tab isn't a chat tab, no row is highlighted.
+ *   - Notifications  (inbound system pushes; unread badge)
+ *   - Diary          (Alice's first-person output stream — read-only)
+ *   ─────
+ *   - Channels       (the chat conversations the user opens)
+ *
+ * The two upper rows are "Alice surfaces"; the channel list is "user
+ * actions". They share this sidebar because the unifying mental model
+ * is "everything Alice-shaped" rather than "places to type messages".
+ *
+ * Active row tracking is derived from the focused tab — switching tabs
+ * naturally shifts the highlight without bespoke wiring.
  */
 export function ChatChannelListContainer() {
   const { channels, openEditDialog, deleteChannel } = useChannels()
   const focused = useWorkspace((state) => getFocusedTab(state)?.spec)
-  const focusedChannelId = focused?.kind === 'chat' ? focused.params.channelId : ''
-  const inboxActive = focused?.kind === 'notifications-inbox'
+  const focusedKind = focused?.kind
+  const focusedChannelId = focusedKind === 'chat' ? focused.params.channelId : ''
+  const inboxActive = focusedKind === 'notifications-inbox'
+  const diaryActive = focusedKind === 'diary'
   const openOrFocus = useWorkspace((state) => state.openOrFocus)
   const unreadCount = useUnreadNotificationsCount()
 
   return (
     <div className="flex flex-col h-full">
-      <div className="py-0.5">
+      <div className="py-0.5 space-y-0.5">
         <SidebarRow
           label={
             <span className="flex items-center gap-2">
-              <BellIcon />
+              <Bell size={14} strokeWidth={1.8} className="shrink-0" />
               <span>Notifications</span>
             </span>
           }
@@ -39,7 +49,7 @@ export function ChatChannelListContainer() {
           trail={
             unreadCount > 0 ? (
               <span
-                className="min-w-[16px] h-[16px] px-1 rounded-full bg-red-500 text-[10px] font-semibold text-white tabular-nums flex items-center justify-center"
+                className="min-w-[16px] h-[16px] px-1 rounded-full bg-red text-[10px] font-semibold text-white tabular-nums flex items-center justify-center"
                 aria-label={`${unreadCount} unread`}
               >
                 {unreadCount > 99 ? '99+' : unreadCount}
@@ -47,9 +57,22 @@ export function ChatChannelListContainer() {
             ) : undefined
           }
         />
+        <SidebarRow
+          label={
+            <span className="flex items-center gap-2">
+              <Notebook size={14} strokeWidth={1.8} className="shrink-0" />
+              <span>Diary</span>
+            </span>
+          }
+          active={diaryActive}
+          onClick={() => openOrFocus({ kind: 'diary', params: {} })}
+        />
       </div>
 
-      <div className="flex-1 overflow-y-auto min-h-0 mt-1">
+      <div className="mt-2 px-3 text-[10px] font-medium text-text-muted/60 uppercase tracking-wider">
+        Channels
+      </div>
+      <div className="flex-1 overflow-y-auto min-h-0 mt-0.5">
         <ChatChannelList
           channels={channels}
           activeChannel={focusedChannelId}
@@ -59,24 +82,5 @@ export function ChatChannelListContainer() {
         />
       </div>
     </div>
-  )
-}
-
-function BellIcon() {
-  return (
-    <svg
-      width="14"
-      height="14"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className="shrink-0"
-    >
-      <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
-      <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-    </svg>
   )
 }

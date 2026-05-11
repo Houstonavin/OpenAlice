@@ -1,5 +1,5 @@
 import { headers } from './client'
-import type { AppConfig, Profile, Preset } from './types'
+import type { AppConfig, Profile, Preset, Credential, SdkAdapterInfo } from './types'
 
 export const configApi = {
   async load(): Promise<AppConfig> {
@@ -29,9 +29,19 @@ export const configApi = {
     return res.json()
   },
 
-  async getProfiles(): Promise<{ profiles: Record<string, Profile>; activeProfile: string }> {
+  async getProfiles(): Promise<{
+    profiles: Record<string, Profile>
+    credentials: Record<string, Credential>
+    activeProfile: string
+  }> {
     const res = await fetch('/api/config/profiles')
     if (!res.ok) throw new Error('Failed to load profiles')
+    return res.json()
+  },
+
+  async getSdkAdapters(): Promise<{ adapters: SdkAdapterInfo[] }> {
+    const res = await fetch('/api/config/sdk-adapters')
+    if (!res.ok) throw new Error('Failed to load SDK adapters')
     return res.json()
   },
 

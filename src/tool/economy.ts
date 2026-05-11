@@ -23,6 +23,7 @@ import type { EconomyClientLike, CommodityClientLike } from '@/domain/market-dat
 
 const FRED_PROVIDER = 'federal_reserve'
 const EIA_PROVIDER = 'eia'
+const BLS_PROVIDER = 'bls'
 
 export function createEconomyTools(
   economyClient: EconomyClientLike,
@@ -99,6 +100,57 @@ per-capita income).`,
         if (region_type !== undefined) params.region_type = region_type
         if (start_date !== undefined) params.start_date = start_date
         return await economyClient.fredRegional(params)
+      },
+    }),
+
+    economyBlsSearch: tool({
+      description: `Search the Bureau of Labor Statistics catalog for a series_id by keyword.
+
+Returns a small curated list of common BLS series matching the query (CPI,
+unemployment rate, nonfarm payrolls, JOLTS, PPI, productivity, etc.). BLS
+itself does not expose a search API — this is a hand-maintained catalog
+on the provider side, so coverage is intentionally narrow rather than
+exhaustive.
+
+Once you have the series_id, pass it to economyBlsSeries to get observations.`,
+      inputSchema: z.object({
+        query: z.string().describe('Keyword to filter the BLS catalog, e.g. "unemployment", "CPI", "JOLTS"'),
+        limit: z.number().int().positive().optional().describe('Max results to return (default: 100)'),
+      }),
+      execute: async ({ query, limit }) => {
+        const params: Record<string, unknown> = { query, provider: BLS_PROVIDER }
+        if (limit !== undefined) params.limit = limit
+        return await economyClient.getBlsSearch(params)
+      },
+    }),
+
+    economyBlsSeries: tool({
+      description: `Fetch observations for one or more BLS series.
+
+Pass a single series_id (e.g. "LNS14000000" for unemployment rate) or
+comma-separated ids (e.g. "LNS14000000,CUUR0000SA0") to retrieve multiple
+series at once.
+
+NOTE: Unlike economyFredSeries which pivots multi-series into one row per
+date with a column per series, BLS results are returned in long form:
+one row per (date, series_id) with a single \`value\` column. Filter or
+group client-side if you need a pivot.
+
+Default time window is the last 10 years if no date range is given. BLS
+returns null/missing for unavailable observations (e.g. months affected
+by funding lapses) — those rows are dropped before returning.
+
+If you don't know the series_id, call economyBlsSearch first.`,
+      inputSchema: z.object({
+        symbol: z.string().describe('BLS series id, or comma-separated ids for multi-series'),
+        start_date: z.string().optional().describe('Start date YYYY-MM-DD (only year is used; default: 10 years ago)'),
+        end_date: z.string().optional().describe('End date YYYY-MM-DD (only year is used; default: current year)'),
+      }),
+      execute: async ({ symbol, start_date, end_date }) => {
+        const params: Record<string, unknown> = { symbol, provider: BLS_PROVIDER }
+        if (start_date !== undefined) params.start_date = start_date
+        if (end_date !== undefined) params.end_date = end_date
+        return await economyClient.getBlsSeries(params)
       },
     }),
 
